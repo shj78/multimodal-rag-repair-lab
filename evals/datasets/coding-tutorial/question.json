@@ -1,0 +1,32 @@
+[
+  {
+    "test_id": "T1",
+    "test_type": "비전질문",
+    "query": "영상에서 사용된 파이썬 내장 함수를 모두 나열해줘",
+    "gold_answer": "input(), split(), int(), len(), print()"
+  },
+  {
+    "test_id": "T2",
+    "test_type": "비전질문",
+    "query": "total 변수의 초기값은 무엇인가?",
+    "gold_answer": "0"
+  },
+  {
+    "test_id": "T3",
+    "test_type": "비전질문",
+    "query": "영상 실행 화면에서 직접 입력한 숫자들은 무엇인가?",
+    "gold_answer": "70,80,90,100,99"
+  },
+  {
+    "test_id": "T4",
+    "test_type": "단순사실",
+    "query": "점수를 입력받을 때 사용한 구분자는 무엇인가?",
+    "gold_answer": "쉼표(,) — split(\",\")으로 분리"
+  },
+  {
+    "test_id": "T5",
+    "test_type": "비전질문",
+    "query": "평균을 계산하는 코드는 어떻게 작성되어 있는가?",
+    "gold_answer": "average = total / len(score_list)"
+  }
+]

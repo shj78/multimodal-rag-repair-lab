@@ -1,0 +1,70 @@
+[
+  {
+    "test_id": "T1",
+    "test_type": "단순사실",
+    "query": "이 영상에서 소개하는 스마트폰의 브랜드는 무엇인가요?",
+    "gold_answer": "삼성 갤럭시",
+    "note": "전사에 '갤럭시', '삼성' 직접 언급. 전사만으로 답변 가능"
+  },
+  {
+    "test_id": "T2",
+    "test_type": "단순사실",
+    "query": "PD님이 플립을 메인으로 사용한 적 있나요? 있다면 어떤 모델이었나요?",
+    "gold_answer": "플립3를 메인으로 약 1년 정도 사용",
+    "note": "전사 [162s~167s] 구간에 직접 언급"
+  },
+  {
+    "test_id": "T3",
+    "test_type": "타임스탬프",
+    "query": "영상에서 트라이폴드에 대한 만족/불만족 의견이 나오는 시점은 언제인가요?",
+    "gold_answer": "약 3분 25초(205초) 부근. 만족하지 않는다에 가깝다고 답변",
+    "note": "전사 [200s~207s] 구간"
+  },
+  {
+    "test_id": "T4",
+    "test_type": "비전질문-L1",
+    "query": "영상에 출연자가 몇 명 등장하나요?",
+    "gold_answer": "2명",
+    "expected_modality": "vision",
+    "note": "L1: llava 수준에서 사람 수 카운트 가능"
+  },
+  {
+    "test_id": "T5",
+    "test_type": "비전질문-L1",
+    "query": "영상에서 스마트폰 실물이 화면에 보이는 장면이 있나요?",
+    "gold_answer": "있다. 약 3분(180초) 부근에서 스마트폰 2대가 나란히 보임",
+    "expected_modality": "vision",
+    "note": "L1: 180s 프레임에서 llava도 'smartphone' 인식 성공한 실적 있음"
+  },
+  {
+    "test_id": "T6",
+    "test_type": "비전질문-L1",
+    "query": "출연자가 제품을 손에 들고 보여주는 장면이 있나요?",
+    "gold_answer": "있다. 약 3분(180초) 부근",
+    "expected_modality": "vision",
+    "note": "L1: 행동 인식 수준. 전사만으로는 확인 불가"
+  },
+  {
+    "test_id": "T7",
+    "test_type": "비전질문-L2",
+    "query": "영상에서 스마트폰의 외관 색상은 어떤 색인가요?",
+    "gold_answer": null,
+    "expected_modality": "vision",
+    "note": "L2: 모델 교체 후 테스트용. llava로는 실패 예상"
+  },
+  {
+    "test_id": "T8",
+    "test_type": "환각테스트",
+    "query": "이 영상에서 아이폰과 삼성폰을 비교하는 부분이 있나요?",
+    "gold_answer": "없다. 비교하는 내용은 없음",
+    "expected_behavior": "refuse",
+    "note": "없는 내용에 대해 '없다'고 답해야 함"
+  },
+  {
+    "test_id": "T9",
+    "test_type": "추론질문",
+    "query": "PD님이 트라이폴드를 메인폰으로 쓰기 어렵다고 느끼는 이유는 무엇인가요?",
+    "gold_answer": "무게를 중요시하는 성향 + 태블릿을 잘 안 쓰는 편 + 게임을 안 해서 큰 화면 활용도가 낮음",
+    "note": "여러 구간을 종합해야 하는 추론. [186s~207s] 구간 중심"
+  }
+]

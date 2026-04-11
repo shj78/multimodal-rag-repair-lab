@@ -192,7 +192,7 @@ async def process_media_background(
 
 @app.get("/", response_class=HTMLResponse)
 async def root_page(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request, "index.html")
 
 
 # [완성 코드] 건강 체크

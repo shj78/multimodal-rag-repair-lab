@@ -10,6 +10,13 @@ class Config:
     # 공급자 설정: local(기본, 로컬 Ollama + faster-whisper) | openai(클라우드)
     provider: str = os.getenv("PROVIDER", "local").lower()
 
+    # ── 역할별 provider (미설정 시 기본 provider 사용) ──
+    # config-규약: "현재 단일 provider 필드를 역할별로 분리한다"
+    transcribe_provider: str = os.getenv("TRANSCRIBE_PROVIDER", "").lower() or os.getenv("PROVIDER", "local").lower()
+    vision_provider: str = os.getenv("VISION_PROVIDER", "").lower() or os.getenv("PROVIDER", "local").lower()
+    chat_provider: str = os.getenv("CHAT_PROVIDER", "").lower() or os.getenv("PROVIDER", "local").lower()
+    judge_provider: str = os.getenv("JUDGE_PROVIDER", "").lower() or os.getenv("PROVIDER", "local").lower()
+
     # ── Ollama 설정 (PROVIDER=local 시 사용) ──
     ollama_base: str = os.getenv("OLLAMA_BASE", "http://localhost:11434")
     ollama_embed_model: str = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
@@ -149,12 +156,12 @@ class PipelineConfig(BaseModel):
 # override_config(vision={"frames_per_minute": 6}) 형태로 사용한다.
 _STAGE_FIELD_MAP: dict[str, dict[str, str]] = {
     "transcription": {
-        "provider": "provider",
+        "provider": "transcribe_provider",
         "whisper_model_size": "whisper_model_size",
         "openai_whisper_model": "openai_whisper_model",
     },
     "vision": {
-        "provider": "provider",
+        "provider": "vision_provider",
         "frames_per_minute": "frames_per_minute",
         "ollama_vision_model": "ollama_vision_model",
         "openai_vision_model": "openai_vision_model",
@@ -175,12 +182,12 @@ _STAGE_FIELD_MAP: dict[str, dict[str, str]] = {
         "search_pre_rerank_k": "search_pre_rerank_k",
     },
     "qa": {
-        "provider": "provider",
+        "provider": "chat_provider",
         "ollama_chat_model": "ollama_chat_model",
         "openai_chat_model": "openai_chat_model",
     },
     "judge": {
-        "provider": "provider",
+        "provider": "judge_provider",
         "ollama_chat_model": "ollama_chat_model",
         "openai_chat_model": "openai_chat_model",
     },
@@ -227,13 +234,13 @@ def get_stage_config() -> PipelineConfig:
     """
     return PipelineConfig(
         transcription=TranscriptionCfg(
-            provider=CONFIG.provider,
+            provider=CONFIG.transcribe_provider,
             whisper_model_size=CONFIG.whisper_model_size,
             openai_whisper_model=CONFIG.openai_whisper_model,
             openai_api_key=CONFIG.openai_api_key,
         ),
         vision=VisionCfg(
-            provider=CONFIG.provider,
+            provider=CONFIG.vision_provider,
             frames_per_minute=CONFIG.frames_per_minute,
             ollama_vision_model=CONFIG.ollama_vision_model,
             openai_vision_model=CONFIG.openai_vision_model,
@@ -260,14 +267,14 @@ def get_stage_config() -> PipelineConfig:
             cohere_api_key=CONFIG.cohere_api_key,
         ),
         qa=QACfg(
-            provider=CONFIG.provider,
+            provider=CONFIG.chat_provider,
             ollama_chat_model=CONFIG.ollama_chat_model,
             openai_chat_model=CONFIG.openai_chat_model,
             ollama_base=CONFIG.ollama_base,
             openai_api_key=CONFIG.openai_api_key,
         ),
         judge=JudgeCfg(
-            provider=CONFIG.provider,
+            provider=CONFIG.judge_provider,
             ollama_chat_model=CONFIG.ollama_chat_model,
             openai_chat_model=CONFIG.openai_chat_model,
             ollama_base=CONFIG.ollama_base,

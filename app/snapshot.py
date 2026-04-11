@@ -42,6 +42,9 @@ def get_config_snapshot() -> Dict[str, Any]:
 
     return {
         "provider": transcription.provider,
+        "vision_provider": vision.provider,
+        "chat_provider": qa.provider,
+        "judge_provider": cfg.judge.provider,
         "whisper_model_size": (
             transcription.whisper_model_size
             if is_local

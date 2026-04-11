@@ -126,9 +126,7 @@ async def process_media_background(
         # ── 4단계: 세그먼트 청킹 + 임베딩 + 저장 ──
         job_store[job_id]["status"] = "embedding"
         with st.measure("embed_save"):
-            chunks = segment_transcript(
-                segments, window_seconds=CONFIG.chunk_window_seconds
-            )
+            chunks = segment_transcript(segments)
 
             for chunk in chunks:
                 context_text = combine_multimodal_context(

@@ -2,17 +2,19 @@ import time
 import requests
 from typing import List, Dict, Any
 
-from app.config import CONFIG
+from app.config import EmbeddingCfg, get_stage_config
 
 
 def segment_transcript(
     segments: List[Dict],
-    window_seconds: float = CONFIG.chunk_window_seconds,
-    overlap_seconds: float = CONFIG.chunk_overlap_seconds,
+    cfg: EmbeddingCfg | None = None,
 ) -> List[Dict]:
+    cfg = cfg or get_stage_config().embedding
     if not segments:
         return []
 
+    window_seconds = cfg.chunk_window_seconds
+    overlap_seconds = cfg.chunk_overlap_seconds
     step = window_seconds - overlap_seconds
     chunks = []
 
@@ -43,17 +45,18 @@ def segment_transcript(
     return chunks
 
 
-def get_text_embedding(text: str) -> List[float]:
-    if CONFIG.provider == "openai":
+def get_text_embedding(text: str, cfg: EmbeddingCfg | None = None) -> List[float]:
+    cfg = cfg or get_stage_config().embedding
+    if cfg.provider == "openai":
         from openai import OpenAI, RateLimitError
 
-        client = OpenAI(api_key=CONFIG.openai_api_key)
+        client = OpenAI(api_key=cfg.openai_api_key)
         for attempt in range(5):
             try:
                 resp = client.embeddings.create(
-                    model=CONFIG.openai_embedding_model,
+                    model=cfg.openai_embedding_model,
                     input=text,
-                    dimensions=CONFIG.embedding_dim,
+                    dimensions=cfg.embedding_dim,
                 )
                 return resp.data[0].embedding
             except RateLimitError as e:
@@ -65,8 +68,8 @@ def get_text_embedding(text: str) -> List[float]:
         raise RuntimeError("OpenAI embedding rate limit: 5회 재시도 후에도 실패")
     else:
         response = requests.post(
-            f"{CONFIG.ollama_base}/api/embeddings",
-            json={"model": CONFIG.ollama_embed_model, "prompt": text},
+            f"{cfg.ollama_base}/api/embeddings",
+            json={"model": cfg.ollama_embed_model, "prompt": text},
         )
         return response.json()["embedding"]
 

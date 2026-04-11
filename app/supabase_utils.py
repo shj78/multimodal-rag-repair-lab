@@ -2,7 +2,7 @@ from supabase import create_client, Client
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
-from app.config import CONFIG
+from app.config import CONFIG, RetrievalCfg, get_stage_config
 
 
 class SupabaseOperationError(Exception):
@@ -142,10 +142,12 @@ def save_segment(
 def search_similar_segments(
     query_embedding: List[float],
     media_id: str,
-    limit: int = CONFIG.search_top_k,
-    threshold: float = CONFIG.search_threshold,
+    cfg: RetrievalCfg | None = None,
     skip_threshold: bool = False,
 ) -> List[Dict[str, Any]]:
+    cfg = cfg or get_stage_config().retrieval
+    limit = cfg.search_top_k
+    threshold = cfg.search_threshold
     try:
         response = (
             _ensure_client()

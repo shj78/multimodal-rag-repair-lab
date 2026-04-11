@@ -6,7 +6,20 @@ Phase 2에서 시그니처를 변경할 때 동작이 보존되는지 검증한�
 
 import pytest
 
+from app.config import EmbeddingCfg
 from app.media_utils import combine_multimodal_context, segment_transcript
+
+
+def _make_embedding_cfg(window_seconds: float, overlap_seconds: float) -> EmbeddingCfg:
+    """테스트용 EmbeddingCfg 헬퍼."""
+    return EmbeddingCfg(
+        provider="local",
+        chunk_window_seconds=window_seconds,
+        chunk_overlap_seconds=overlap_seconds,
+        ollama_embed_model="nomic-embed-text",
+        openai_embedding_model="text-embedding-3-small",
+        embedding_dim=768,
+    )
 
 
 # ── segment_transcript ──
@@ -27,7 +40,8 @@ class TestSegmentTranscript:
 
     def test_single_segment_within_window(self):
         segments = self._make_segments([(0.0, 5.0, "hello")])
-        chunks = segment_transcript(segments, window_seconds=20.0, overlap_seconds=5.0)
+        cfg = _make_embedding_cfg(window_seconds=20.0, overlap_seconds=5.0)
+        chunks = segment_transcript(segments, cfg=cfg)
         assert len(chunks) == 1
         assert chunks[0]["text"] == "hello"
         assert chunks[0]["chunk_index"] == 0
@@ -39,7 +53,8 @@ class TestSegmentTranscript:
             (20.0, 30.0, "C"),
             (30.0, 40.0, "D"),
         ])
-        chunks = segment_transcript(segments, window_seconds=20.0, overlap_seconds=5.0)
+        cfg = _make_embedding_cfg(window_seconds=20.0, overlap_seconds=5.0)
+        chunks = segment_transcript(segments, cfg=cfg)
         indices = [c["chunk_index"] for c in chunks]
         assert indices == list(range(len(chunks)))
 
@@ -50,7 +65,8 @@ class TestSegmentTranscript:
             (8.0, 12.0, "boundary"),
             (12.0, 20.0, "second"),
         ])
-        chunks = segment_transcript(segments, window_seconds=10.0, overlap_seconds=3.0)
+        cfg = _make_embedding_cfg(window_seconds=10.0, overlap_seconds=3.0)
+        chunks = segment_transcript(segments, cfg=cfg)
         texts = [c["text"] for c in chunks]
         boundary_count = sum(1 for t in texts if "boundary" in t)
         assert boundary_count >= 2, "경계 세그먼트가 오버랩으로 2개 이상 청크에 포함되어야 함"
@@ -65,11 +81,11 @@ class TestSegmentTranscript:
         ])
         # window=10, overlap=0 → step=10 → 2개 청크
         chunks_no_overlap = segment_transcript(
-            segments, window_seconds=10.0, overlap_seconds=0.0
+            segments, cfg=_make_embedding_cfg(window_seconds=10.0, overlap_seconds=0.0)
         )
         # window=10, overlap=5 → step=5 → 더 많은 청크
         chunks_with_overlap = segment_transcript(
-            segments, window_seconds=10.0, overlap_seconds=5.0
+            segments, cfg=_make_embedding_cfg(window_seconds=10.0, overlap_seconds=5.0)
         )
         assert len(chunks_with_overlap) > len(chunks_no_overlap)
 
@@ -78,7 +94,8 @@ class TestSegmentTranscript:
             (0.0, 10.0, "A"),
             (10.0, 25.0, "B"),
         ])
-        chunks = segment_transcript(segments, window_seconds=20.0, overlap_seconds=5.0)
+        cfg = _make_embedding_cfg(window_seconds=20.0, overlap_seconds=5.0)
+        chunks = segment_transcript(segments, cfg=cfg)
         for chunk in chunks:
             assert chunk["start"] >= 0.0
             assert chunk["end"] <= 25.0

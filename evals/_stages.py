@@ -10,7 +10,7 @@ import shutil
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
-from app.config import CONFIG
+from app.config import get_stage_config
 
 from evals._common import EVALS_DIR, save_fixture, timer
 
@@ -77,7 +77,7 @@ def run_vision(
 
     print("[vision] 프레임 추출 중...")
     frames = extract_key_frames(
-        source_path, frames_dir, frames_per_minute=CONFIG.frames_per_minute
+        source_path, frames_dir, frames_per_minute=get_stage_config().vision.frames_per_minute
     )
     print(f"[vision] {len(frames)}개 프레임 추출 완료")
 
@@ -141,11 +141,7 @@ def run_embed_and_save(
 
     print(f"[embed] 청킹 + 임베딩 중... (media_id={media_id})")
     with timer() as t_embed:
-        chunks = segment_transcript(
-            segments,
-            window_seconds=CONFIG.chunk_window_seconds,
-            overlap_seconds=CONFIG.chunk_overlap_seconds,
-        )
+        chunks = segment_transcript(segments)
 
         total_duration = max((s["end"] for s in segments), default=0)
         full_transcript = " ".join(seg.get("text", "").strip() for seg in segments)

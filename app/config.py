@@ -1,5 +1,7 @@
 import os
+from contextlib import contextmanager
 from dotenv import load_dotenv
+from pydantic import BaseModel
 
 load_dotenv()
 
@@ -73,6 +75,131 @@ class Config:
 
 
 CONFIG = Config()
+
+
+# ── Stage Config 모델 ──
+# config-규약: "파이프라인 단계별 설정을 Pydantic BaseModel로 분리한다"
+# flat CONFIG가 단일 진실 공급원. Stage Config는 CONFIG의 파생 뷰.
+
+
+class TranscriptionCfg(BaseModel):
+    provider: str
+    whisper_model_size: str   # local: faster-whisper 모델 크기
+    openai_whisper_model: str  # openai: Whisper API 모델명
+    openai_api_key: str = ""
+
+
+class VisionCfg(BaseModel):
+    provider: str
+    frames_per_minute: int
+    ollama_vision_model: str
+    openai_vision_model: str
+    ollama_base: str = ""
+    openai_api_key: str = ""
+
+
+class EmbeddingCfg(BaseModel):
+    provider: str
+    chunk_window_seconds: float
+    chunk_overlap_seconds: float
+    ollama_embed_model: str
+    openai_embedding_model: str
+    embedding_dim: int
+    ollama_base: str = ""
+    openai_api_key: str = ""
+
+
+class RetrievalCfg(BaseModel):
+    search_top_k: int
+    search_threshold: float
+    use_rerank: bool
+    rerank_model: str
+    rerank_top_n: int
+    search_pre_rerank_k: int
+    cohere_api_key: str = ""
+
+
+class QACfg(BaseModel):
+    provider: str
+    ollama_chat_model: str
+    openai_chat_model: str
+    ollama_base: str = ""
+    openai_api_key: str = ""
+
+
+class JudgeCfg(BaseModel):
+    """1급 시민 — QACfg와 독립. Sprint 3 exp-06에서 judge/chat 동일 모델 편향 발견."""
+    provider: str
+    ollama_chat_model: str
+    openai_chat_model: str
+    ollama_base: str = ""
+    openai_api_key: str = ""
+
+
+class PipelineConfig(BaseModel):
+    transcription: TranscriptionCfg
+    vision: VisionCfg
+    embedding: EmbeddingCfg
+    retrieval: RetrievalCfg
+    qa: QACfg
+    judge: JudgeCfg
+
+
+def get_stage_config() -> PipelineConfig:
+    """flat CONFIG에서 stage별 config를 빌드한다.
+
+    호출 시점에 CONFIG를 읽으므로 override_config() 블록 안에서도 올바른 값을 반환한다.
+    """
+    return PipelineConfig(
+        transcription=TranscriptionCfg(
+            provider=CONFIG.provider,
+            whisper_model_size=CONFIG.whisper_model_size,
+            openai_whisper_model=CONFIG.openai_whisper_model,
+            openai_api_key=CONFIG.openai_api_key,
+        ),
+        vision=VisionCfg(
+            provider=CONFIG.provider,
+            frames_per_minute=CONFIG.frames_per_minute,
+            ollama_vision_model=CONFIG.ollama_vision_model,
+            openai_vision_model=CONFIG.openai_vision_model,
+            ollama_base=CONFIG.ollama_base,
+            openai_api_key=CONFIG.openai_api_key,
+        ),
+        embedding=EmbeddingCfg(
+            provider=CONFIG.provider,
+            chunk_window_seconds=CONFIG.chunk_window_seconds,
+            chunk_overlap_seconds=CONFIG.chunk_overlap_seconds,
+            ollama_embed_model=CONFIG.ollama_embed_model,
+            openai_embedding_model=CONFIG.openai_embedding_model,
+            embedding_dim=CONFIG.embedding_dim,
+            ollama_base=CONFIG.ollama_base,
+            openai_api_key=CONFIG.openai_api_key,
+        ),
+        retrieval=RetrievalCfg(
+            search_top_k=CONFIG.search_top_k,
+            search_threshold=CONFIG.search_threshold,
+            use_rerank=CONFIG.use_rerank,
+            rerank_model=CONFIG.rerank_model,
+            rerank_top_n=CONFIG.rerank_top_n,
+            search_pre_rerank_k=CONFIG.search_pre_rerank_k,
+            cohere_api_key=CONFIG.cohere_api_key,
+        ),
+        qa=QACfg(
+            provider=CONFIG.provider,
+            ollama_chat_model=CONFIG.ollama_chat_model,
+            openai_chat_model=CONFIG.openai_chat_model,
+            ollama_base=CONFIG.ollama_base,
+            openai_api_key=CONFIG.openai_api_key,
+        ),
+        judge=JudgeCfg(
+            provider=CONFIG.provider,
+            ollama_chat_model=CONFIG.ollama_chat_model,
+            openai_chat_model=CONFIG.openai_chat_model,
+            ollama_base=CONFIG.ollama_base,
+            openai_api_key=CONFIG.openai_api_key,
+        ),
+    )
+
 
 # OpenAI 사용 시 필수 키 검증
 if CONFIG.provider == "openai" and not CONFIG.openai_api_key:

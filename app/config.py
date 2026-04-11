@@ -15,6 +15,7 @@ class Config:
     transcribe_provider: str = os.getenv("TRANSCRIBE_PROVIDER", "").lower() or os.getenv("PROVIDER", "local").lower()
     vision_provider: str = os.getenv("VISION_PROVIDER", "").lower() or os.getenv("PROVIDER", "local").lower()
     chat_provider: str = os.getenv("CHAT_PROVIDER", "").lower() or os.getenv("PROVIDER", "local").lower()
+    embedding_provider: str = os.getenv("EMBEDDING_PROVIDER", "").lower() or os.getenv("PROVIDER", "local").lower()
     judge_provider: str = os.getenv("JUDGE_PROVIDER", "").lower() or os.getenv("PROVIDER", "local").lower()
 
     # ── Ollama 설정 (PROVIDER=local 시 사용) ──
@@ -167,7 +168,7 @@ _STAGE_FIELD_MAP: dict[str, dict[str, str]] = {
         "openai_vision_model": "openai_vision_model",
     },
     "embedding": {
-        "provider": "provider",
+        "provider": "embedding_provider",
         "chunk_window_seconds": "chunk_window_seconds",
         "chunk_overlap_seconds": "chunk_overlap_seconds",
         "ollama_embed_model": "ollama_embed_model",
@@ -248,7 +249,7 @@ def get_stage_config() -> PipelineConfig:
             openai_api_key=CONFIG.openai_api_key,
         ),
         embedding=EmbeddingCfg(
-            provider=CONFIG.provider,
+            provider=CONFIG.embedding_provider,
             chunk_window_seconds=CONFIG.chunk_window_seconds,
             chunk_overlap_seconds=CONFIG.chunk_overlap_seconds,
             ollama_embed_model=CONFIG.ollama_embed_model,
@@ -283,10 +284,22 @@ def get_stage_config() -> PipelineConfig:
     )
 
 
-# OpenAI 사용 시 필수 키 검증
-if CONFIG.provider == "openai" and not CONFIG.openai_api_key:
+# OpenAI 사용 시 필수 키 검증 — 역할별 provider 중 하나라도 openai면 키 필요
+_openai_providers = [
+    (name, getattr(CONFIG, attr))
+    for name, attr in [
+        ("transcription", "transcribe_provider"),
+        ("vision", "vision_provider"),
+        ("embedding", "embedding_provider"),
+        ("qa", "chat_provider"),
+        ("judge", "judge_provider"),
+    ]
+    if getattr(CONFIG, attr) == "openai"
+]
+if _openai_providers and not CONFIG.openai_api_key:
+    _names = ", ".join(name for name, _ in _openai_providers)
     raise ValueError(
-        "PROVIDER=openai로 설정했지만 OPENAI_API_KEY가 설정되지 않았습니다."
+        f"{_names} provider가 openai인데 OPENAI_API_KEY가 설정되지 않았습니다."
     )
 
 # 디렉토리 생성
@@ -295,23 +308,21 @@ for _dir in (CONFIG.upload_dir, CONFIG.frames_dir):
         os.makedirs(_dir)
 
 # 시작 시 config 출력
-if CONFIG.provider == "local":
-    _models = f"""  Chat Model           : {CONFIG.ollama_chat_model}
-  Vision Model         : {CONFIG.ollama_vision_model}
-  Embed Model          : {CONFIG.ollama_embed_model}
-  Whisper Size         : {CONFIG.whisper_model_size}
-  Ollama Base          : {CONFIG.ollama_base}"""
-else:
-    _models = f"""  Chat Model           : {CONFIG.openai_chat_model}
-  Vision Model         : {CONFIG.openai_vision_model}
-  Embed Model          : {CONFIG.openai_embedding_model}
-  Whisper Model        : {CONFIG.openai_whisper_model}"""
-
 print(
     f"""
 [config] ──────────────────────────────
-  Provider             : {CONFIG.provider}
-{_models}
+  ─ Providers ─
+  Transcription        : {CONFIG.transcribe_provider}
+  Vision               : {CONFIG.vision_provider}
+  Embedding            : {CONFIG.embedding_provider}
+  QA (Chat)            : {CONFIG.chat_provider}
+  Judge                : {CONFIG.judge_provider}
+  ─ Models ─
+  Chat Model           : {CONFIG.openai_chat_model if CONFIG.chat_provider == "openai" else CONFIG.ollama_chat_model}
+  Vision Model         : {CONFIG.openai_vision_model if CONFIG.vision_provider == "openai" else CONFIG.ollama_vision_model}
+  Embed Model          : {CONFIG.openai_embedding_model if CONFIG.embedding_provider == "openai" else CONFIG.ollama_embed_model}
+  Whisper              : {CONFIG.openai_whisper_model if CONFIG.transcribe_provider == "openai" else CONFIG.whisper_model_size}
+  Ollama Base          : {CONFIG.ollama_base}
   ─ Search / Chunking ─
   Embedding Dim        : {CONFIG.embedding_dim}
   Frames Per Minute    : {CONFIG.frames_per_minute}

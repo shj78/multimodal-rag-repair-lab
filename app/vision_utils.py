@@ -6,7 +6,7 @@ import base64
 import requests
 from typing import List, Dict
 
-from app.config import CONFIG
+from app.config import VisionCfg, get_stage_config
 from app.prompts import get_vision_prompt
 
 
@@ -70,20 +70,23 @@ def extract_key_frames(
     return result
 
 
-def analyze_frame_with_vision_model(frame_path: str, timestamp: float) -> str:
+def analyze_frame_with_vision_model(
+    frame_path: str, timestamp: float, cfg: VisionCfg | None = None
+) -> str:
+    cfg = cfg or get_stage_config().vision
     with open(frame_path, "rb") as f:
         image_b64 = base64.b64encode(f.read()).decode("utf-8")
 
     prompt = get_vision_prompt(timestamp)
 
-    if CONFIG.provider == "openai":
+    if cfg.provider == "openai":
         from openai import OpenAI, RateLimitError
 
-        client = OpenAI(api_key=CONFIG.openai_api_key)
+        client = OpenAI(api_key=cfg.openai_api_key)
         for attempt in range(5):
             try:
                 resp = client.chat.completions.create(
-                    model=CONFIG.openai_vision_model,
+                    model=cfg.openai_vision_model,
                     messages=[
                         {
                             "role": "user",
@@ -109,9 +112,9 @@ def analyze_frame_with_vision_model(frame_path: str, timestamp: float) -> str:
         raise RuntimeError("OpenAI vision rate limit: 5회 재시도 후에도 실패")
     else:
         response = requests.post(
-            f"{CONFIG.ollama_base}/api/generate",
+            f"{cfg.ollama_base}/api/generate",
             json={
-                "model": CONFIG.ollama_vision_model,
+                "model": cfg.ollama_vision_model,
                 "prompt": prompt,
                 "images": [image_b64],
                 "stream": False,

@@ -14,7 +14,7 @@ from typing import Dict, List, Any
 from datetime import datetime
 from openai import AuthenticationError as OpenAIAuthError
 
-from .config import CONFIG
+from .config import CONFIG, get_stage_config
 from .diagnostics import get_config_snapshot, timer, StageTimer
 from .transcription_utils import extract_audio_from_video, transcribe_audio
 from .vision_utils import extract_key_frames, analyze_frame_with_vision_model
@@ -99,7 +99,7 @@ async def process_media_background(
             filename=filename,
             file_type="video" if is_video else "audio",
             duration=duration,
-            metadata={"provider": CONFIG.provider},
+            metadata={"provider": get_stage_config().transcription.provider},
             full_transcript=full_transcript,
         )
 
@@ -112,7 +112,7 @@ async def process_media_background(
                 frames_dir = os.path.join(CONFIG.frames_dir, media_id)
                 os.makedirs(frames_dir, exist_ok=True)
                 frames = extract_key_frames(
-                    file_path, frames_dir, frames_per_minute=CONFIG.frames_per_minute
+                    file_path, frames_dir, frames_per_minute=get_stage_config().vision.frames_per_minute
                 )
                 frame_count = len(frames)
                 for frame in frames:
@@ -198,15 +198,23 @@ async def root_page(request: Request):
 # [완성 코드] 건강 체크
 @app.get("/health")
 async def health_check():
-    components: Dict[str, Any] = {"status": "ok", "provider": CONFIG.provider}
+    cfg = get_stage_config()
+    providers = {
+        "transcription": cfg.transcription.provider,
+        "vision": cfg.vision.provider,
+        "embedding": cfg.embedding.provider,
+        "qa": cfg.qa.provider,
+        "judge": cfg.judge.provider,
+    }
+    components: Dict[str, Any] = {"status": "ok", "providers": providers}
 
-    if CONFIG.provider == "local":
+    has_local = any(p == "local" for p in providers.values())
+    if has_local:
         try:
             resp = requests.get(f"{CONFIG.ollama_base}/api/tags", timeout=3)
             components["ollama"] = "ok" if resp.status_code == 200 else "error"
         except Exception:
             components["ollama"] = "unreachable"
-        components["whisper_model_size"] = CONFIG.whisper_model_size
 
     return components
 
@@ -330,20 +338,21 @@ async def summarize_media(media_id: str):
         },
     ]
 
-    if CONFIG.provider == "openai":
+    qa_cfg = get_stage_config().qa
+    if qa_cfg.provider == "openai":
         from openai import OpenAI
 
-        client = OpenAI(api_key=CONFIG.openai_api_key)
+        client = OpenAI(api_key=qa_cfg.openai_api_key)
         resp = client.chat.completions.create(
-            model=CONFIG.openai_chat_model,
+            model=qa_cfg.openai_chat_model,
             messages=messages,
         )
         summary = resp.choices[0].message.content
     else:
         resp = requests.post(
-            f"{CONFIG.ollama_base}/api/chat",
+            f"{qa_cfg.ollama_base}/api/chat",
             json={
-                "model": CONFIG.ollama_chat_model,
+                "model": qa_cfg.ollama_chat_model,
                 "messages": messages,
                 "stream": False,
             },

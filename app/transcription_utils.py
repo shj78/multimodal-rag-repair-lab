@@ -2,7 +2,7 @@ from typing import List, Dict
 import ffmpeg
 
 from faster_whisper import WhisperModel
-from app.config import CONFIG
+from app.config import TranscriptionCfg, get_stage_config
 
 
 def extract_audio_from_video(video_path: str, output_path: str) -> str:
@@ -14,14 +14,17 @@ def extract_audio_from_video(video_path: str, output_path: str) -> str:
     pass
 
 
-def transcribe_audio(audio_path: str) -> List[Dict]:
-    if CONFIG.provider == "openai":
+def transcribe_audio(
+    audio_path: str, cfg: TranscriptionCfg | None = None
+) -> List[Dict]:
+    cfg = cfg or get_stage_config().transcription
+    if cfg.provider == "openai":
         from openai import OpenAI
 
-        client = OpenAI(api_key=CONFIG.openai_api_key)
+        client = OpenAI(api_key=cfg.openai_api_key)
         with open(audio_path, "rb") as f:
             resp = client.audio.transcriptions.create(
-                model=CONFIG.openai_whisper_model,
+                model=cfg.openai_whisper_model,
                 file=f,
                 response_format="verbose_json",
             )
@@ -31,7 +34,7 @@ def transcribe_audio(audio_path: str) -> List[Dict]:
         ]
     else:
         model = WhisperModel(
-            CONFIG.whisper_model_size, device="cpu", compute_type="int8"
+            cfg.whisper_model_size, device="cpu", compute_type="int8"
         )
         segments, _ = model.transcribe(audio_path, beam_size=5)
         return [

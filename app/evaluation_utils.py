@@ -6,7 +6,7 @@ from jiwer import wer, cer
 from app.chat_utils import get_answer_by_chat_model
 from app.retrieval_utils import retrieve_segments
 
-from app.config import CONFIG
+from app.config import JudgeCfg, get_stage_config
 from app.prompts import (
     EVAL_ANSWER_RELEVANCE_PROMPT,
     EVAL_GROUNDEDNESS_PROMPT,
@@ -15,22 +15,23 @@ from app.prompts import (
 )
 
 
-def _llm_chat(prompt: str) -> str:
+def _llm_chat(prompt: str, cfg: JudgeCfg | None = None) -> str:
     """평가용 LLM 호출 헬퍼 — provider에 따라 분기."""
-    if CONFIG.provider == "openai":
+    cfg = cfg or get_stage_config().judge
+    if cfg.provider == "openai":
         from openai import OpenAI
 
-        client = OpenAI(api_key=CONFIG.openai_api_key)
+        client = OpenAI(api_key=cfg.openai_api_key)
         resp = client.chat.completions.create(
-            model=CONFIG.openai_chat_model,
+            model=cfg.openai_chat_model,
             messages=[{"role": "user", "content": prompt}],
         )
         return resp.choices[0].message.content.strip()
     else:
         resp = requests.post(
-            f"{CONFIG.ollama_base}/api/chat",
+            f"{cfg.ollama_base}/api/chat",
             json={
-                "model": CONFIG.ollama_chat_model,
+                "model": cfg.ollama_chat_model,
                 "messages": [{"role": "user", "content": prompt}],
                 "stream": False,
             },

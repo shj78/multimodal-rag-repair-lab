@@ -1,10 +1,11 @@
 import time
 import requests
-from .config import CONFIG
+from .config import QACfg, get_stage_config
 from .prompts import get_qa_system_prompt
 
 
-def get_answer_by_chat_model(query, similar_segments):
+def get_answer_by_chat_model(query, similar_segments, cfg: QACfg | None = None):
+    cfg = cfg or get_stage_config().qa
     context_text = "\n".join(
         f"[{seg['start_time']:.0f}s] {seg['text']}"
         + (
@@ -21,14 +22,14 @@ def get_answer_by_chat_model(query, similar_segments):
         {"role": "user", "content": f"컨텍스트:\n{context_text}\n\n질문: {query}"},
     ]
 
-    if CONFIG.provider == "openai":
+    if cfg.provider == "openai":
         from openai import OpenAI, RateLimitError
 
-        client = OpenAI(api_key=CONFIG.openai_api_key)
+        client = OpenAI(api_key=cfg.openai_api_key)
         for attempt in range(5):
             try:
                 resp = client.chat.completions.create(
-                    model=CONFIG.openai_chat_model,
+                    model=cfg.openai_chat_model,
                     messages=messages,
                 )
                 answer = resp.choices[0].message.content
@@ -43,9 +44,9 @@ def get_answer_by_chat_model(query, similar_segments):
             raise RuntimeError("OpenAI chat rate limit: 5회 재시도 후에도 실패")
     else:
         resp = requests.post(
-            f"{CONFIG.ollama_base}/api/chat",
+            f"{cfg.ollama_base}/api/chat",
             json={
-                "model": CONFIG.ollama_chat_model,
+                "model": cfg.ollama_chat_model,
                 "messages": messages,
                 "stream": False,
             },

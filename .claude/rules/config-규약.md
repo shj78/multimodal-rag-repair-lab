@@ -58,11 +58,12 @@ def segment_transcript(segments, cfg: EmbeddingCfg | None = None):
 
 ## Snapshot 단일화
 
-기존 snapshot 로직이 diagnostics.py와 _common.py에 중복되어 있고, 일부 프롬프트가 누락돼 있었다.
+`app/snapshot.py`의 `get_config_snapshot()` + `get_prompt_snapshot()`가 단일 진실 공급원.
+diagnostics.py(런타임)와 evals/_common.py(CLI) 모두 이 함수를 import한다.
 
-- `app/snapshot.py` 신규 — `get_config_snapshot()` + `get_prompt_snapshot()` 단일 함수
-- 두 곳 모두 이 함수를 import (중복 제거)
-- 누락 추가: rerank doc prompt, EVAL_*_PROMPT 4종, vision/QA prompt 버전
+- 각 stage의 provider로 활성 모델을 개별 결정 (기존 `is_local` 단일 판단 제거)
+- snapshot 키는 stage별로 구성: `transcription_provider`, `vision_provider`, `embedding_provider`, `chat_provider`, `judge_provider`
+- `_common.py`의 `FINGERPRINT_KEYS`도 stage별 provider 키를 참조
 
 ---
 
@@ -84,9 +85,19 @@ with override_config(vision={"frames_per_minute": 6}):
 
 ---
 
-## Provider 분리
+## Provider 분리 (완료)
 
-현재 단일 `provider` 필드를 역할별로 분리한다. 개수는 페어 합의 후 결정 (3개 또는 4개).
+단일 `provider` 필드를 역할별 5개로 분리 완료. 기존 `Config.provider` 필드와 `PROVIDER` env var fallback은 제거됨.
+
+| stage | env var | Config 필드 |
+| --- | --- | --- |
+| transcription | `TRANSCRIBE_PROVIDER` | `transcribe_provider` |
+| vision | `VISION_PROVIDER` | `vision_provider` |
+| embedding | `EMBEDDING_PROVIDER` | `embedding_provider` |
+| qa | `CHAT_PROVIDER` | `chat_provider` |
+| judge | `JUDGE_PROVIDER` | `judge_provider` |
+
+미설정 시 기본값은 `"local"`. `.env`와 Config 클래스 모두 stage별로 정리되어 있다.
 
 ---
 
@@ -103,9 +114,26 @@ config의 embed 모델에 따라 테이블 + match 함수를 자동 선택한다
 
 ---
 
+## 임베딩 차원
+
+`embedding_dim`은 활성 모델명에서 자동 결정된다 (provider가 아닌 모델 기준).
+
+```python
+_EMBED_DIMS = {
+    "nomic-embed-text": 768,
+    "bge-m3": 1024,
+    "text-embedding-3-small": 1536,
+    "text-embedding-3-large": 3072,
+}
+```
+
+`EMBEDDING_DIM` env var로 선택적 override 가능 (OpenAI의 커스텀 차원 용도).
+
+---
+
 ## 냄새 신호 (config 특화)
 
-- 함수 시그니처에 `CONFIG.xxx` default가 보인다 → Phase A 미적용
-- `.model_dump()` 결과와 실제 전달된 값이 다르다 → 양다리 재발
+- 함수 시그니처에 `CONFIG.xxx` default가 보인다 → 호출 규약 미적용
+- snapshot의 provider 키가 stage와 불일치한다 → snapshot 양다리
 - fixture의 config fingerprint와 현재 config가 불일치 → config drift
 - 같은 실험을 두 번 돌렸는데 config snapshot이 다르다 → 환경 오염

@@ -206,8 +206,8 @@ compare 모드에서 범위 밖 upstream fixture가 필요할 때:
 3. 일치하면 재사용, 불일치하거나 없으면 **에러** + 안내 메시지
 
 ```
-segments fixture     → whisper_model_size, provider 비교
-frame_analyses fixture → vision_model, prompt_version, frames_per_minute, provider 비교
+segments fixture     → transcription_provider, whisper_model_size, openai_whisper_model 비교
+frame_analyses fixture → vision_provider, vision_model, prompt_version, frames_per_minute 비교
 ```
 
 ### 입력원과 옵션
@@ -340,8 +340,8 @@ fixture에는 실험 조건(메타)과 실제 결과(데이터)를 함께 저장
   "created_at": "2026-03-29T14:00:00",
   "dataset": "samsung-unboxing",
   "config": {
-    "whisper_model_size": "small",
-    "provider": "local"
+    "transcription_provider": "local",
+    "whisper_model_size": "small"
   },
   "latency_ms": 45000,
   "data": [
@@ -353,8 +353,8 @@ fixture에는 실험 조건(메타)과 실제 결과(데이터)를 함께 저장
 
 ### 갱신 기준
 
-- `whisper_model_size`를 바꿨다 → segments fixture 무효, 전사 재실행
-- `vision_model`이나 프롬프트를 바꿨다 → frame_analyses fixture 무효
+- `transcription_provider`나 `whisper_model_size`를 바꿨다 → segments fixture 무효, 전사 재실행
+- `vision_provider`, `vision_model`, 프롬프트를 바꿨다 → frame_analyses fixture 무효
 - config 안 바꿨다 → 기존 fixture 그대로 사용
 
 ---
@@ -395,17 +395,28 @@ CURRENT_VISION_VERSION = "v2"
   "changed": null,
   "target": "qa",
   "config": {
-    "provider": "local",
+    "transcription_provider": "local",
     "whisper_model_size": "small",
-    "chat_model": "llama3.1",
+    "openai_whisper_model": "whisper-1",
+    "vision_provider": "local",
     "vision_model": "llava",
-    "embed_model": "nomic-embed-text",
-    "embedding_dim": 768,
     "prompt_version": "v2",
     "frames_per_minute": 1,
+    "embedding_provider": "local",
+    "embed_model": "nomic-embed-text",
+    "embedding_dim": 768,
     "chunk_window_seconds": 30.0,
+    "chunk_overlap_seconds": 5.0,
+    "chat_provider": "local",
+    "chat_model": "llama3.1",
+    "qa_prompt_version": "v1",
+    "judge_provider": "local",
     "search_threshold": 0.5,
-    "search_top_k": 5
+    "search_top_k": 5,
+    "use_rerank": false,
+    "rerank_model": "rerank-multilingual-v3.0",
+    "rerank_top_n": 3,
+    "search_pre_rerank_k": 15
   },
   "prompts": {
     "vision": { "version": "v2", "text": "..." },

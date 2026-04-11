@@ -45,9 +45,9 @@ def run_transcribe(
         dataset,
         segments,
         {
+            "transcription_provider": config_snapshot["transcription_provider"],
             "whisper_model_size": config_snapshot["whisper_model_size"],
             "openai_whisper_model": config_snapshot["openai_whisper_model"],
-            "provider": config_snapshot["provider"],
         },
         latency_ms=t_transcribe(),
     )
@@ -105,10 +105,10 @@ def run_vision(
         dataset,
         frame_analyses,
         {
+            "vision_provider": config_snapshot["vision_provider"],
             "vision_model": config_snapshot["vision_model"],
             "prompt_version": config_snapshot["prompt_version"],
             "frames_per_minute": config_snapshot["frames_per_minute"],
-            "provider": config_snapshot["provider"],
         },
         latency_ms=t_vision(),
     )

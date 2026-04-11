@@ -1,0 +1,32 @@
+#!/bin/bash
+# commit-msg 훅: 커밋 메시지 형식 검사
+# 규칙: [Delta-03] 로 시작해야 함
+# 예시: [Delta-03] RAG 파이프라인 기본 구조 추가
+
+COMMIT_MSG_FILE=$1
+COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
+
+# 패턴: [Delta-03] 로 시작하는지 확인
+PATTERN="^\[Delta-03\]"
+
+if ! echo "$COMMIT_MSG" | grep -qE "$PATTERN"; then
+  echo ""
+  echo "❌ 커밋 메시지 형식 오류!"
+  echo ""
+  echo "  규칙: [Delta-03] <메시지> 형식으로 작성해주세요"
+  echo ""
+  echo "  ✅ 올바른 예시:"
+  echo "     [Delta-03] feat: RAG 파이프라인 기본 구조 추가"
+  echo "     [Delta-03] feat: 임베딩 모델 연동"
+  echo "     [Delta-03] fix: LLM 버그 수정"
+  echo ""
+  echo "  ❌ 잘못된 예시:"
+  echo "     feat: RAG 파이프라인 추가"
+  echo "     Delta-6: 임베딩 모델 연동"
+  echo ""
+  echo "  입력한 메시지: \"$COMMIT_MSG\""
+  echo ""
+  exit 1
+fi
+
+exit 0

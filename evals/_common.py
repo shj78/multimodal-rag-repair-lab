@@ -11,13 +11,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-from app.config import CONFIG
-from app.prompts import (
-    CURRENT_VISION_VERSION,
-    CURRENT_QA_SYSTEM_VERSION,
-    VISION_PROMPTS,
-    QA_SYSTEM_PROMPTS,
-)
+from app.snapshot import get_config_snapshot, get_prompt_snapshot  # noqa: F401
 
 EVALS_DIR = Path(__file__).parent
 FIXTURES_DIR = EVALS_DIR / "fixtures"
@@ -67,59 +61,6 @@ FINGERPRINT_KEYS = {
         "chunk_overlap_seconds",
     ),
 }
-
-
-# ── config 스냅샷 ──
-
-
-def get_config_snapshot() -> dict:
-    """현재 CONFIG를 실험 결과에 기록할 dict로 반환한다."""
-    return {
-        "provider": CONFIG.provider,
-        "whisper_model_size": CONFIG.whisper_model_size,
-        "openai_whisper_model": CONFIG.openai_whisper_model,
-        "chat_model": (
-            CONFIG.ollama_chat_model
-            if CONFIG.provider == "local"
-            else CONFIG.openai_chat_model
-        ),
-        "vision_model": (
-            CONFIG.ollama_vision_model
-            if CONFIG.provider == "local"
-            else CONFIG.openai_vision_model
-        ),
-        "embed_model": (
-            CONFIG.ollama_embed_model
-            if CONFIG.provider == "local"
-            else CONFIG.openai_embedding_model
-        ),
-        "embedding_dim": CONFIG.embedding_dim,
-        "prompt_version": CURRENT_VISION_VERSION,
-        "qa_prompt_version": CURRENT_QA_SYSTEM_VERSION,
-        "frames_per_minute": CONFIG.frames_per_minute,
-        "chunk_window_seconds": CONFIG.chunk_window_seconds,
-        "chunk_overlap_seconds": CONFIG.chunk_overlap_seconds,
-        "search_threshold": CONFIG.search_threshold,
-        "search_top_k": CONFIG.search_top_k,
-        "use_rerank": CONFIG.use_rerank,
-        "rerank_model": CONFIG.rerank_model,
-        "rerank_top_n": CONFIG.rerank_top_n,
-        "search_pre_rerank_k": CONFIG.search_pre_rerank_k,
-    }
-
-
-def get_prompt_snapshot() -> dict:
-    """현재 프롬프트 버전 + 전문을 기록할 dict로 반환한다."""
-    return {
-        "vision": {
-            "version": CURRENT_VISION_VERSION,
-            "text": VISION_PROMPTS[CURRENT_VISION_VERSION],
-        },
-        "qa_system": {
-            "version": CURRENT_QA_SYSTEM_VERSION,
-            "text": QA_SYSTEM_PROMPTS[CURRENT_QA_SYSTEM_VERSION],
-        },
-    }
 
 
 # ── 타이밍 ──

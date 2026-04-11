@@ -9,47 +9,7 @@ import time
 from contextlib import contextmanager
 from typing import Any, Dict
 
-from .config import CONFIG
-from .prompts import CURRENT_VISION_VERSION, CURRENT_QA_SYSTEM_VERSION
-
-# ── config 스냅샷 ──
-
-
-def get_config_snapshot() -> Dict[str, Any]:
-    """현재 CONFIG 상태를 API 응답에 포함할 dict로 반환한다.
-
-    evals의 get_config_snapshot()과 동일한 키를 유지하여
-    evals 결과 JSON과 API 응답 간 비교가 가능하도록 한다.
-    """
-    is_local = CONFIG.provider == "local"
-    return {
-        "provider": CONFIG.provider,
-        "whisper_model_size": (
-            CONFIG.whisper_model_size if is_local else CONFIG.openai_whisper_model
-        ),
-        "chat_model": (
-            CONFIG.ollama_chat_model if is_local else CONFIG.openai_chat_model
-        ),
-        "vision_model": (
-            CONFIG.ollama_vision_model if is_local else CONFIG.openai_vision_model
-        ),
-        "embed_model": (
-            CONFIG.ollama_embed_model if is_local else CONFIG.openai_embedding_model
-        ),
-        "embedding_dim": CONFIG.embedding_dim,
-        "prompt_version": CURRENT_VISION_VERSION,
-        "qa_prompt_version": CURRENT_QA_SYSTEM_VERSION,
-        "frames_per_minute": CONFIG.frames_per_minute,
-        "chunk_window_seconds": CONFIG.chunk_window_seconds,
-        "chunk_overlap_seconds": CONFIG.chunk_overlap_seconds,
-        "search_threshold": CONFIG.search_threshold,
-        "search_top_k": CONFIG.search_top_k,
-        "use_rerank": CONFIG.use_rerank,
-        "rerank_model": CONFIG.rerank_model,
-        "rerank_top_n": CONFIG.rerank_top_n,
-        "search_pre_rerank_k": CONFIG.search_pre_rerank_k,
-    }
-
+from .snapshot import get_config_snapshot  # noqa: F401 — re-export for callers
 
 # ── 타이밍 계측 ──
 

@@ -145,6 +145,81 @@ class PipelineConfig(BaseModel):
     judge: JudgeCfg
 
 
+# Stage Config 필드명 → flat CONFIG 속성명 매핑
+# override_config(vision={"frames_per_minute": 6}) 형태로 사용한다.
+_STAGE_FIELD_MAP: dict[str, dict[str, str]] = {
+    "transcription": {
+        "provider": "provider",
+        "whisper_model_size": "whisper_model_size",
+        "openai_whisper_model": "openai_whisper_model",
+    },
+    "vision": {
+        "provider": "provider",
+        "frames_per_minute": "frames_per_minute",
+        "ollama_vision_model": "ollama_vision_model",
+        "openai_vision_model": "openai_vision_model",
+    },
+    "embedding": {
+        "provider": "provider",
+        "chunk_window_seconds": "chunk_window_seconds",
+        "chunk_overlap_seconds": "chunk_overlap_seconds",
+        "ollama_embed_model": "ollama_embed_model",
+        "openai_embedding_model": "openai_embedding_model",
+    },
+    "retrieval": {
+        "search_top_k": "search_top_k",
+        "search_threshold": "search_threshold",
+        "use_rerank": "use_rerank",
+        "rerank_model": "rerank_model",
+        "rerank_top_n": "rerank_top_n",
+        "search_pre_rerank_k": "search_pre_rerank_k",
+    },
+    "qa": {
+        "provider": "provider",
+        "ollama_chat_model": "ollama_chat_model",
+        "openai_chat_model": "openai_chat_model",
+    },
+    "judge": {
+        "provider": "provider",
+        "ollama_chat_model": "ollama_chat_model",
+        "openai_chat_model": "openai_chat_model",
+    },
+}
+
+
+@contextmanager
+def override_config(**stage_overrides):
+    """flat CONFIG 속성을 일시적으로 덮어쓰고 블록 종료 시 자동 복원한다.
+
+    Usage:
+        with override_config(vision={"frames_per_minute": 6}):
+            run_experiment(...)
+        # 블록 종료 시 frames_per_minute 자동 복원
+
+    Args:
+        **stage_overrides: stage 이름 → {필드명: 값} dict.
+            stage 이름은 _STAGE_FIELD_MAP의 키와 동일해야 한다.
+    """
+    saved: dict[str, object] = {}
+
+    for stage, fields in stage_overrides.items():
+        if stage not in _STAGE_FIELD_MAP:
+            raise ValueError(f"알 수 없는 stage: {stage!r}. 가능한 값: {list(_STAGE_FIELD_MAP)}")
+        for field, value in fields.items():
+            config_attr = _STAGE_FIELD_MAP[stage].get(field)
+            if config_attr is None:
+                raise ValueError(f"stage={stage!r}에 알 수 없는 필드: {field!r}")
+            if config_attr not in saved:
+                saved[config_attr] = getattr(CONFIG, config_attr)
+            setattr(CONFIG, config_attr, value)
+
+    try:
+        yield
+    finally:
+        for attr, original in saved.items():
+            setattr(CONFIG, attr, original)
+
+
 def get_stage_config() -> PipelineConfig:
     """flat CONFIG에서 stage별 config를 빌드한다.
 

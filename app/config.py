@@ -7,32 +7,30 @@ load_dotenv()
 
 
 class Config:
-    # ── 역할별 provider ──
-    transcribe_provider: str = os.getenv("TRANSCRIBE_PROVIDER", "local").lower()
-    vision_provider: str = os.getenv("VISION_PROVIDER", "local").lower()
-    chat_provider: str = os.getenv("CHAT_PROVIDER", "local").lower()
-    embedding_provider: str = os.getenv("EMBEDDING_PROVIDER", "local").lower()
-    judge_provider: str = os.getenv("JUDGE_PROVIDER", "local").lower()
-
-    # ── Ollama 설정 (provider=local 시 사용) ──
-    ollama_base: str = os.getenv("OLLAMA_BASE", "http://localhost:11434")
-    ollama_embed_model: str = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
-    ollama_chat_model: str = os.getenv("OLLAMA_CHAT_MODEL", "llama3.1")
-    ollama_vision_model: str = os.getenv("OLLAMA_VISION_MODEL", "llava")
-
-    # ── OpenAI 설정 (provider=openai 시 사용) ──
+    # ── 공유: API 키 / 접속 정보 ──
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
+    ollama_base: str = os.getenv("OLLAMA_BASE", "http://localhost:11434")
+
+    # ── Transcription ──
+    transcribe_provider: str = os.getenv("TRANSCRIBE_PROVIDER", "local").lower()
+    whisper_model_size: str = os.getenv("WHISPER_MODEL_SIZE", "large-v3-turbo")
+    openai_whisper_model: str = os.getenv("OPENAI_WHISPER_MODEL", "whisper-1")
+
+    # ── Vision ──
+    vision_provider: str = os.getenv("VISION_PROVIDER", "local").lower()
+    ollama_vision_model: str = os.getenv("OLLAMA_VISION_MODEL", "llava")
+    openai_vision_model: str = os.getenv("OPENAI_VISION_MODEL", "gpt-4o-mini")
+    frames_per_minute: int = 3
+
+    # ── Embedding ──
+    embedding_provider: str = os.getenv("EMBEDDING_PROVIDER", "local").lower()
+    ollama_embed_model: str = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
     openai_embedding_model: str = os.getenv(
         "OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"
     )
-    openai_chat_model: str = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
-    openai_vision_model: str = os.getenv("OPENAI_VISION_MODEL", "gpt-4o-mini")
-    openai_whisper_model: str = os.getenv("OPENAI_WHISPER_MODEL", "whisper-1")
+    chunk_window_seconds: float = 20.0
+    chunk_overlap_seconds: float = 5.0
 
-    # faster-whisper 모델 크기: tiny | base | small | medium | large-v3 | large-v3-turbo
-    whisper_model_size: str = os.getenv("WHISPER_MODEL_SIZE", "large-v3-turbo")
-
-    # ── 임베딩 차원: 모델 → dim 매핑 ──
     _EMBED_DIMS: dict = {
         "nomic-embed-text": 768,
         "bge-m3": 1024,
@@ -52,6 +50,29 @@ class Config:
         )
         return self._EMBED_DIMS.get(active_model, 768)
 
+    # ── QA (Chat) ──
+    chat_provider: str = os.getenv("CHAT_PROVIDER", "local").lower()
+    ollama_chat_model: str = os.getenv("OLLAMA_CHAT_MODEL", "llama3.1")
+    openai_chat_model: str = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
+
+    # ── Judge ──
+    judge_provider: str = os.getenv("JUDGE_PROVIDER", "local").lower()
+
+    # ── Retrieval ──
+    search_threshold: float = 0.3
+    search_top_k: int = 3
+
+    # ── Rerank ──
+    use_rerank: bool = os.getenv("USE_RERANK", "false").lower() == "true"
+    cohere_api_key: str = os.getenv("COHERE_API_KEY", "")
+    rerank_model: str = os.getenv("RERANK_MODEL", "rerank-multilingual-v3.0")
+    rerank_top_n: int = 3
+    search_pre_rerank_k: int = 15
+
+    # ── Supabase ──
+    supabase_url: str = os.getenv("SUPABASE_URL", "")
+    supabase_key: str = os.getenv("SUPABASE_KEY", "")
+
     # ── 파일 시스템 ──
     upload_dir: str = "app/uploads"
     frames_dir: str = "app/frames"
@@ -65,24 +86,6 @@ class Config:
         "m4a",
         "webm",
     }
-
-    # ── 실험 파라미터 ──
-    frames_per_minute: int = 3
-    chunk_window_seconds: float = 20.0
-    chunk_overlap_seconds: float = 5.0
-    search_threshold: float = 0.3
-    search_top_k: int = 3
-
-    # ── Cohere Rerank ──
-    use_rerank: bool = os.getenv("USE_RERANK", "false").lower() == "true"
-    cohere_api_key: str = os.getenv("COHERE_API_KEY", "")
-    rerank_model: str = os.getenv("RERANK_MODEL", "rerank-multilingual-v3.0")
-    rerank_top_n: int = 3
-    search_pre_rerank_k: int = 15
-
-    # ── Supabase ──
-    supabase_url: str = os.getenv("SUPABASE_URL", "")
-    supabase_key: str = os.getenv("SUPABASE_KEY", "")
 
 
 CONFIG = Config()

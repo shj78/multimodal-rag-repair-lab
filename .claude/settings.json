@@ -1,6 +1,10 @@
 {
   "permissions": {
-    "deny": ["Bash(git commit --no-verify:*)", "Bash(git commit -n:*)"]
+    "allow": [],
+    "deny": [
+      "Bash(git commit --no-verify:*)",
+      "Bash(git commit -n:*)"
+    ]
   },
   "hooks": {
     "PreToolUse": [

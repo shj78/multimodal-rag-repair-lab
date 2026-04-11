@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "deny": ["Bash(git commit --no-verify:*)", "Bash(git commit -n:*)"]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write",
+        "description": "fixture 수동 편집 차단",
+        "command": "bash -c 'if echo \"$TOOL_INPUT\" | grep -q \"fixtures/\"; then echo \"BLOCK: fixture는 스크립트가 자동 생성합니다. 수동 편집 금지.\"; exit 1; fi'"
+      }
+    ]
+  }
+}

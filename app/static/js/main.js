@@ -189,12 +189,12 @@ function selectMedia(mediaId, fileType, filename) {
   videoPlayer.classList.add('hidden');
   playerPlaceholder.classList.add('hidden');
 
-  const uploadPath = `/static/uploads/${mediaId}`;
+  const mediaUrl = `/media/${mediaId}/file`;
   if (fileType === 'video') {
-    videoPlayer.src = uploadPath;
+    videoPlayer.src = mediaUrl;
     videoPlayer.classList.remove('hidden');
   } else {
-    audioPlayer.src = uploadPath;
+    audioPlayer.src = mediaUrl;
     audioPlayer.classList.remove('hidden');
   }
 }

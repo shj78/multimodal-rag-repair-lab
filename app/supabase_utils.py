@@ -47,6 +47,7 @@ def save_media_file(
     duration: float,
     metadata: Optional[Dict] = None,
     full_transcript: Optional[str] = None,
+    file_path: Optional[str] = None,
 ) -> Dict:
     row = {
         "id": media_id,
@@ -57,6 +58,8 @@ def save_media_file(
         "metadata": metadata or {},
         "created_at": datetime.utcnow().isoformat(),
     }
+    if file_path is not None:
+        row["file_path"] = file_path
     if full_transcript is not None:
         row["full_transcript"] = full_transcript
 

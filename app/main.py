@@ -4,7 +4,7 @@
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks, Body
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi import Request
 import os
@@ -27,6 +27,7 @@ from .supabase_utils import (
     save_media_file,
     save_segment,
     get_all_media,
+    get_media_by_id,
     get_media_segments,
     update_media_status,
     SupabaseOperationError,
@@ -101,6 +102,7 @@ async def process_media_background(
             duration=duration,
             metadata={"provider": get_stage_config().transcription.provider},
             full_transcript=full_transcript,
+            file_path=file_path,
         )
 
         # ── 3단계: 키 프레임 분석 (비디오인 경우) ──
@@ -193,6 +195,17 @@ async def process_media_background(
 @app.get("/", response_class=HTMLResponse)
 async def root_page(request: Request):
     return templates.TemplateResponse(request, "index.html")
+
+
+@app.get("/media/{media_id}/file")
+async def serve_media_file(media_id: str):
+    media = get_media_by_id(media_id)
+    if not media or not media.get("file_path"):
+        raise HTTPException(status_code=404, detail="미디어 파일을 찾을 수 없습니다.")
+    file_path = media["file_path"]
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="파일이 서버에 존재하지 않습니다.")
+    return FileResponse(file_path)
 
 
 # [완성 코드] 건강 체크

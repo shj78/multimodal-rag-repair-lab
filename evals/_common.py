@@ -38,23 +38,36 @@ AFFECTS_DOWNSTREAM = {
 }
 
 # fixture별 config fingerprint 키
+# 각 fixture는 자기 stage의 provider를 참조한다 (기존 단일 "provider" 키 제거).
 FINGERPRINT_KEYS = {
-    "segments": ("whisper_model_size", "openai_whisper_model", "provider"),
-    "frame_analyses": (
-        "vision_model",
-        "prompt_version",
-        "frames_per_minute",
-        "provider",
-    ),
-    # embed 결과(media_id)는 DB에만 저장되므로 fixture 파일이 없다.
-    # 대신 results/에서 동일 조건의 실험 결과를 찾아 media_id를 재사용한다.
-    "media_id": (
+    # ── Transcription fixture ──
+    "segments": (
+        "transcription_provider",
         "whisper_model_size",
         "openai_whisper_model",
-        "provider",
+    ),
+    # ── Vision fixture ──
+    "frame_analyses": (
+        "vision_provider",
         "vision_model",
         "prompt_version",
         "frames_per_minute",
+    ),
+    # ── Embed~QA (media_id) ──
+    # DB에만 저장되므로 fixture 파일이 없다.
+    # results/에서 동일 조건의 실험 결과를 찾아 media_id를 재사용한다.
+    "media_id": (
+        # transcription
+        "transcription_provider",
+        "whisper_model_size",
+        "openai_whisper_model",
+        # vision
+        "vision_provider",
+        "vision_model",
+        "prompt_version",
+        "frames_per_minute",
+        # embedding
+        "embedding_provider",
         "embed_model",
         "embedding_dim",
         "chunk_window_seconds",

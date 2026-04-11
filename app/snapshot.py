@@ -28,8 +28,8 @@ from .prompts import (
 def get_config_snapshot() -> Dict[str, Any]:
     """현재 CONFIG 상태를 실험/API 응답에 포함할 dict로 반환한다.
 
-    Stage Config의 .model_dump()를 활용하여 생성하므로,
-    get_stage_config() → override_config() 체인이 올바르게 반영된다.
+    Stage Config의 provider를 기준으로 각 stage의 활성 모델을 개별 결정한다.
+    기존 is_local(단일 provider 시대 잔재)을 제거하고 stage별 provider로 전환.
     """
     cfg = get_stage_config()
     transcription = cfg.transcription
@@ -38,34 +38,39 @@ def get_config_snapshot() -> Dict[str, Any]:
     retrieval = cfg.retrieval
     qa = cfg.qa
 
-    is_local = transcription.provider == "local"
-
     return {
-        "provider": transcription.provider,
-        "vision_provider": vision.provider,
-        "chat_provider": qa.provider,
-        "judge_provider": cfg.judge.provider,
-        "whisper_model_size": (
-            transcription.whisper_model_size
-            if is_local
-            else transcription.openai_whisper_model
-        ),
+        # ── Transcription ──
+        "transcription_provider": transcription.provider,
+        "whisper_model_size": transcription.whisper_model_size,
         "openai_whisper_model": transcription.openai_whisper_model,
-        "chat_model": qa.ollama_chat_model if is_local else qa.openai_chat_model,
+        # ── Vision ──
+        "vision_provider": vision.provider,
         "vision_model": (
-            vision.ollama_vision_model if is_local else vision.openai_vision_model
+            vision.openai_vision_model
+            if vision.provider == "openai"
+            else vision.ollama_vision_model
         ),
+        "prompt_version": CURRENT_VISION_VERSION,
+        "frames_per_minute": vision.frames_per_minute,
+        # ── Embedding ──
+        "embedding_provider": embedding.provider,
         "embed_model": (
-            embedding.ollama_embed_model
-            if is_local
-            else embedding.openai_embedding_model
+            embedding.openai_embedding_model
+            if embedding.provider == "openai"
+            else embedding.ollama_embed_model
         ),
         "embedding_dim": embedding.embedding_dim,
-        "prompt_version": CURRENT_VISION_VERSION,
-        "qa_prompt_version": CURRENT_QA_SYSTEM_VERSION,
-        "frames_per_minute": vision.frames_per_minute,
         "chunk_window_seconds": embedding.chunk_window_seconds,
         "chunk_overlap_seconds": embedding.chunk_overlap_seconds,
+        # ── QA ──
+        "chat_provider": qa.provider,
+        "chat_model": (
+            qa.openai_chat_model if qa.provider == "openai" else qa.ollama_chat_model
+        ),
+        "qa_prompt_version": CURRENT_QA_SYSTEM_VERSION,
+        # ── Judge ──
+        "judge_provider": cfg.judge.provider,
+        # ── Retrieval / Rerank ──
         "search_threshold": retrieval.search_threshold,
         "search_top_k": retrieval.search_top_k,
         "use_rerank": retrieval.use_rerank,

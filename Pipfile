@@ -9,7 +9,6 @@ fastapi = "*"
 python-dotenv = "*"
 pydantic = "*"
 requests = "*"
-python-ffmpeg = "*"
 faster-whisper = "*"
 openai = "*"
 supabase = "*"
@@ -18,6 +17,7 @@ cohere = "*"
 python-multipart = "*"
 jinja2 = "*"
 aiofiles = "*"
+ffmpeg-python = "*"
 
 [dev-packages]
 

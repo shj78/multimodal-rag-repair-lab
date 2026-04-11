@@ -1,11 +1,3 @@
-"""
-vision_utils.py — 비디오 프레임 추출 및 비전 모델 분석 유틸리티
-
-[TODO]
-이 파일의 두 함수를 구현하세요.
-구현 순서: extract_key_frames → analyze_frame_with_vision_model
-"""
-
 import json
 import os
 import subprocess
@@ -40,47 +32,6 @@ def _get_video_duration(video_path: str) -> float:
 def extract_key_frames(
     video_path: str, output_dir: str, frames_per_minute: int = 1
 ) -> List[Dict]:
-    """
-    [TODO] 비디오에서 일정 간격으로 키 프레임을 추출합니다.
-
-    요구사항:
-    1. opencv-python-headless(cv2)를 사용하여 비디오를 열고 프레임을 추출하세요.
-       - frames_per_minute 간격(초)으로 프레임을 추출합니다.
-       - 추출된 프레임을 output_dir에 JPEG 파일로 저장하세요.
-    2. 반환값은 {"timestamp": float(초), "frame_path": str} 형태의 딕셔너리 리스트입니다.
-
-    힌트:
-        import cv2
-        cap = cv2.VideoCapture(video_path)
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        total_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
-        duration = total_frames / fps  # 총 재생 시간(초)
-
-        interval_sec = 60 / frames_per_minute  # 프레임 간격(초)
-        timestamp = 0.0
-        while timestamp < duration:
-            cap.set(cv2.CAP_PROP_POS_MSEC, timestamp * 1000)
-            ret, frame = cap.read()
-            if ret:
-                frame_path = os.path.join(output_dir, f"frame_{timestamp:.1f}.jpg")
-                cv2.imwrite(frame_path, frame)
-                # 결과 리스트에 추가 ...
-            timestamp += interval_sec
-        cap.release()
-
-    Args:
-        video_path (str): 비디오 파일 경로
-        output_dir (str): 프레임 저장 디렉토리
-        frames_per_minute (int): 분당 추출할 프레임 수 (기본값: 1)
-
-    Returns:
-        List[Dict]: [{"timestamp": 0.0, "frame_path": "app/frames/.../frame_0.0.jpg"}, ...]
-    """
-
-    # ---------------------------------------------------------
-    # ffmpeg CLI 기반 프레임 추출 (AV1 등 모든 코덱 지원)
-    # ---------------------------------------------------------
-
     result = []
 
     duration = _get_video_duration(video_path)
@@ -120,48 +71,6 @@ def extract_key_frames(
 
 
 def analyze_frame_with_vision_model(frame_path: str, timestamp: float) -> str:
-    """
-    [TODO] 프레임 이미지를 비전 모델에 전달하여 장면 설명을 생성합니다.
-
-    요구사항:
-    1. PROVIDER=local: Ollama의 moondream 모델을 사용하세요.
-       - Ollama API의 images 파라미터에 base64 인코딩된 이미지를 전달합니다.
-       - Ollama API 문서 확인: https://github.com/ollama/ollama/blob/main/docs/api.md
-    2. PROVIDER=openai: GPT-4o Vision API를 사용하세요.
-       - openai.chat.completions.create()에 image_url 또는 base64 이미지 전달
-    3. 반환값은 해당 프레임의 장면 설명 문자열입니다.
-
-    힌트 (로컬 Ollama):
-        import base64, requests
-        from app.config import OLLAMA_BASE, OLLAMA_VISION_MODEL
-
-        with open(frame_path, "rb") as f:
-            image_b64 = base64.b64encode(f.read()).decode("utf-8")
-
-        response = requests.post(
-            f"{OLLAMA_BASE}/api/generate",
-            json={
-                "model": OLLAMA_VISION_MODEL,
-                "prompt": f"[{timestamp:.1f}s] 이 인터뷰 영상 프레임에서 무슨 일이 일어나고 있는지 한국어로 간결하게 설명해주세요.",
-                "images": [image_b64],
-                "stream": False,
-            },
-        )
-        return response.json()["response"]
-
-    Args:
-        frame_path (str): 분석할 프레임 이미지 경로
-        timestamp (float): 해당 프레임의 타임스탬프(초)
-
-    Returns:
-        str: 프레임 장면 설명
-    """
-    # ---------------------------------------------------------
-    # [TODO] 비전 모델 분석 로직 작성
-    # 기본: Ollama moondream (PROVIDER=local)
-    # 선택: GPT-4o Vision (PROVIDER=openai)
-    # ---------------------------------------------------------
-
     with open(frame_path, "rb") as f:
         image_b64 = base64.b64encode(f.read()).decode("utf-8")
 

@@ -1,18 +1,3 @@
-"""
-evaluation_utils.py — 멀티모달 RAG 평가 유틸리티
-
-[TODO]
-평가 지표 4종을 구현하세요. calculate_wer와 run_full_evaluation은 뼈대가 제공됩니다.
-
-평가 지표 목표치:
-    WER (↓)                < 0.15
-    Answer Relevance (↑)   > 0.70
-    Groundedness (↑)       > 0.70
-    Retrieval Precision (↑) > 0.60
-
-[선택 과제] calculate_visual_text_alignment — 이 파일 하단 참고
-"""
-
 from typing import List, Dict, Any, Optional, Tuple
 import requests
 import re
@@ -76,72 +61,7 @@ def calculate_wer_cer(reference: str, hypothesis: str) -> Tuple[float, float]:
     return wer(reference, hypothesis), cer(reference, hypothesis)
 
 
-# ────────────────────────────────────────
-# [TODO] LLM-as-Judge 평가 함수들
-# ────────────────────────────────────────
 def calculate_answer_relevance(question: str, answer: str) -> float:
-    """
-    [TODO] LLM-as-Judge 방식으로 답변의 질문 관련성을 평가합니다.
-
-    요구사항:
-    1. LLM(Ollama 또는 OpenAI)에게 아래 구조의 프롬프트를 전달하세요.
-    2. 0.0~1.0 사이의 점수를 반환하도록 프롬프트를 설계하세요.
-    3. LLM 응답에서 숫자를 파싱하여 float로 반환하세요.
-
-    프롬프트 설계 예시:
-        "다음 질문과 답변의 관련성을 0.0~1.0으로 평가하세요.
-         관련성이 없으면 0.0, 완전히 관련 있으면 1.0입니다.
-         숫자만 반환하세요.
-         질문: {question}
-         답변: {answer}"
-
-    Args:
-        question (str): 사용자 질문
-        answer (str): LLM 생성 답변
-
-    Returns:
-        float: 관련성 점수 (0.0~1.0)
-    """
-    # ---------------------------------------------------------
-    # [TODO] LLM 호출 후 점수 파싱
-    #
-    # ── LLM 호출 힌트 ────────────────────────────────────────
-    # prompt = (
-    #     f"다음 질문과 답변의 관련성을 0.0~1.0으로 평가하세요.\n"
-    #     f"관련성이 없으면 0.0, 완전히 관련 있으면 1.0입니다.\n"
-    #     f"숫자만 반환하세요.\n"
-    #     f"질문: {question}\n답변: {answer}"
-    # )
-    #
-    # [Ollama (PROVIDER=local)]
-    #     import os, requests
-    #     OLLAMA_BASE = os.getenv("OLLAMA_BASE", "http://localhost:11434")
-    #     OLLAMA_CHAT_MODEL = os.getenv("OLLAMA_CHAT_MODEL", "llama3.1")
-    #     resp = requests.post(
-    #         f"{OLLAMA_BASE}/api/chat",
-    #         json={"model": OLLAMA_CHAT_MODEL,
-    #               "messages": [{"role": "user", "content": prompt}],
-    #               "stream": False},
-    #     )
-    #     raw = resp.json()["message"]["content"].strip()
-    #
-    # [OpenAI (PROVIDER=openai)]
-    #     from openai import OpenAI
-    #     import os
-    #     OPENAI_CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o")
-    #     client = OpenAI()
-    #     resp = client.chat.completions.create(
-    #         model=OPENAI_CHAT_MODEL,
-    #         messages=[{"role": "user", "content": prompt}],
-    #     )
-    #     raw = resp.choices[0].message.content.strip()
-    #
-    # # 숫자 파싱 (LLM이 "0.85" 또는 "Score: 0.85" 형식으로 반환할 수 있음)
-    # import re
-    # match = re.search(r"\d+\.?\d*", raw)
-    # return float(match.group()) if match else 0.0
-    # ---------------------------------------------------------
-
     prompt = EVAL_ANSWER_RELEVANCE_PROMPT.format(question=question, answer=answer)
     raw = _llm_chat(prompt)
     match = re.search(r"\d+\.?\d*", raw)
@@ -149,37 +69,6 @@ def calculate_answer_relevance(question: str, answer: str) -> float:
 
 
 def calculate_groundedness(answer: str, context: str) -> float:
-    """
-    [TODO] LLM-as-Judge 방식으로 답변의 근거성(hallucination 여부)을 평가합니다.
-
-    요구사항:
-    1. 답변이 context(검색된 세그먼트 텍스트)에 근거하는지 0.0~1.0으로 평가합니다.
-    2. context에 없는 내용을 답변에 포함하면 낮은 점수를 줘야 합니다.
-
-    프롬프트 설계 포인트:
-        - "답변의 모든 내용이 주어진 컨텍스트에서 찾을 수 있습니까?"
-        - "컨텍스트에 없는 내용을 답변이 생성했다면 점수를 낮게 주세요."
-
-    Args:
-        answer (str): LLM 생성 답변
-        context (str): 검색된 세그먼트 텍스트(컨텍스트)
-
-    Returns:
-        float: 근거성 점수 (0.0~1.0)
-    """
-    # ---------------------------------------------------------
-    # [TODO] LLM 호출 후 점수 파싱
-    #
-    # ── LLM 호출 힌트 ────────────────────────────────────────
-    # prompt = (
-    #     f"아래 답변이 주어진 컨텍스트에만 근거하는지 0.0~1.0으로 평가하세요.\n"
-    #     f"컨텍스트에 없는 내용이 답변에 포함되어 있으면 낮은 점수를 주세요.\n"
-    #     f"숫자만 반환하세요.\n"
-    #     f"컨텍스트: {context}\n답변: {answer}"
-    # )
-    # calculate_answer_relevance()의 LLM 호출 패턴과 동일하게 구현하세요.
-    # ---------------------------------------------------------
-
     prompt = EVAL_GROUNDEDNESS_PROMPT.format(context=context, answer=answer)
     raw = _llm_chat(prompt)
     match = re.search(r"\d+\.?\d*", raw)
@@ -189,42 +78,6 @@ def calculate_groundedness(answer: str, context: str) -> float:
 def calculate_retrieval_precision(
     retrieved_segments: List[Dict], question: str
 ) -> float:
-    """
-    [TODO] 검색된 세그먼트 중 질문과 관련 있는 세그먼트의 비율을 평가합니다.
-
-    요구사항:
-    1. 각 retrieved_segments에 대해 LLM에게 질문과 관련이 있는지(0 또는 1) 판단하게 합니다.
-    2. 관련 세그먼트 수 / 전체 검색 세그먼트 수를 반환합니다.
-    3. retrieved_segments가 비어 있으면 0.0을 반환합니다.
-
-    Args:
-        retrieved_segments (List[Dict]): search_similar_segments() 반환값
-        question (str): 사용자 질문
-
-    Returns:
-        float: Retrieval Precision (0.0~1.0)
-    """
-    # ---------------------------------------------------------
-    # [TODO] 각 세그먼트에 대한 관련성 판단 후 비율 계산
-    #
-    # ── LLM 호출 힌트 ────────────────────────────────────────
-    # if not retrieved_segments:
-    #     return 0.0
-    #
-    # relevant_count = 0
-    # for seg in retrieved_segments:
-    #     prompt = (
-    #         f"다음 질문에 대해 아래 텍스트가 관련이 있으면 1, 없으면 0을 반환하세요.\n"
-    #         f"숫자만 반환하세요.\n"
-    #         f"질문: {question}\n텍스트: {seg.get('text', '')}"
-    #     )
-    #     # calculate_answer_relevance()의 LLM 호출 패턴과 동일하게 구현하세요.
-    #     # score = <LLM 호출 결과 파싱>
-    #     # relevant_count += 1 if score >= 0.5 else 0
-    #
-    # return relevant_count / len(retrieved_segments)
-    # ---------------------------------------------------------
-
     if not retrieved_segments:
         return 0.0
 
@@ -242,32 +95,11 @@ def calculate_retrieval_precision(
     return relevant_count / len(retrieved_segments)
 
 
-# ────────────────────────────────────────
-# [부분 스캐폴드] 전체 평가 실행
-# ────────────────────────────────────────
 def run_full_evaluation(
     media_id: str,
     test_questions: List[str],
     reference_transcript: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """
-    [부분 스캐폴드] 전체 평가 파이프라인을 실행하고 메트릭을 반환합니다.
-
-    이 함수의 루프 구조는 제공됩니다.
-    TODO 표시된 부분에서 각 평가 함수를 호출하세요.
-
-    Args:
-        media_id (str): 평가 대상 미디어 ID
-        test_questions (List[str]): 평가에 사용할 질문 목록 (최소 1개)
-        reference_transcript (str | None): WER 계산용 정답 텍스트
-
-    Returns:
-        Dict: {
-            "metrics": { wer, cer, answer_relevance, groundedness, retrieval_precision },
-            "qa_results": [ per-question detail ... ],
-            "question_count": int,
-        }
-    """
     import time
 
     from .media_utils import get_text_embedding

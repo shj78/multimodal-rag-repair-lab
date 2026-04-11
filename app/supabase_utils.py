@@ -1,18 +1,3 @@
-"""
-supabase_utils.py — Supabase 데이터베이스 유틸리티
-
-[TODO]
-구현 순서: save_media_file → save_segment → get_all_media → search_similar_segments → get_media_segments
-※ update_media_status는 이미 완성된 코드입니다. 건드리지 마세요.
-
-⚠️  supabase 2.x 주의사항:
-    이 프로젝트는 supabase==2.3.0을 사용합니다.
-    이전 스프린트(1.0.3)와 클라이언트 API가 일부 변경되었습니다.
-    이전 스프린트 코드를 직접 복사하면 오류가 발생할 수 있습니다.
-    - 응답 구조: response.data (동일), response.error → 예외 처리 방식 변경
-    - RPC 호출 패턴: .rpc("함수명", {파라미터}) → 동일
-"""
-
 from supabase import create_client, Client
 from typing import List, Dict, Any, Optional
 from datetime import datetime
@@ -63,20 +48,6 @@ def save_media_file(
     metadata: Optional[Dict] = None,
     full_transcript: Optional[str] = None,
 ) -> Dict:
-    """
-    media_files 테이블에 미디어 파일 정보를 저장합니다.
-
-    Args:
-        media_id (str): 미디어 UUID
-        filename (str): 원본 파일명
-        file_type (str): "audio" | "video"
-        duration (float): 재생 시간(초)
-        metadata (Dict): 추가 메타데이터 (JSONB)
-        full_transcript (str | None): 원본 전사 텍스트 (WER/CER 계산용)
-
-    Returns:
-        Dict: 저장된 레코드
-    """
     row = {
         "id": media_id,
         "filename": filename,
@@ -120,9 +91,6 @@ def get_media_by_id(media_id: str) -> Optional[Dict]:
 def update_media_status(
     media_id: str, status: str, segment_count: Optional[int] = None
 ) -> None:
-    """
-    [완성 코드] media_files 테이블의 상태를 업데이트합니다. (오케스트레이터에서 호출)
-    """
     data: Dict[str, Any] = {
         "status": status,
         "updated_at": datetime.utcnow().isoformat(),
@@ -146,27 +114,6 @@ def save_segment(
     embedding: List[float],
     frame_description: Optional[str] = None,
 ) -> Dict:
-    """
-    [TODO] media_segments 테이블에 세그먼트를 저장합니다.
-
-    요구사항:
-    1. README.md의 DB 스키마(media_segments 테이블)를 확인하세요.
-    2. embedding은 List[float] 형태 그대로 전달하면 pgvector가 처리합니다.
-    3. frame_description은 오디오 전용 파일이면 None으로 저장합니다.
-
-    Args:
-        media_id (str): 상위 media_files의 id
-        chunk_index (int): 청크 순서 인덱스
-        text (str): 세그먼트 전사 텍스트
-        start_time (float): 시작 시간(초)
-        end_time (float): 종료 시간(초)
-        embedding (List[float]): 임베딩 벡터
-        frame_description (str | None): 해당 구간 프레임 설명
-
-    Returns:
-        Dict: 저장된 레코드
-    """
-
     try:
         response = (
             _ensure_client()
@@ -199,39 +146,6 @@ def search_similar_segments(
     threshold: float = CONFIG.search_threshold,
     skip_threshold: bool = False,
 ) -> List[Dict[str, Any]]:
-    """
-    [TODO] 쿼리 벡터와 유사한 세그먼트를 코사인 유사도로 검색합니다.
-
-    요구사항:
-    1. README.md의 DB 스키마에서 생성한 match_segments RPC 함수를 호출하세요.
-       - 파라미터: query_embedding, match_count, p_media_id
-    2. 반환된 결과 중 similarity가 threshold 이상인 것만 필터링하세요.
-
-    힌트:
-        response = supabase.rpc(
-            "match_segments",
-            {
-                "query_embedding": query_embedding,
-                "match_count": limit,
-                "p_media_id": media_id,
-            },
-        ).execute()
-        results = response.data or []
-        return [r for r in results if r.get("similarity", 0) >= threshold]
-
-    Args:
-        query_embedding (List[float]): 쿼리 임베딩 벡터
-        media_id (str): 검색 대상 미디어 ID
-        limit (int): 반환할 최대 결과 수
-        threshold (float): 유사도 임계값
-
-    Returns:
-        List[Dict]: 유사 세그먼트 목록
-    """
-    # ---------------------------------------------------------
-    # [TODO] 벡터 유사도 검색 로직 작성
-    # ---------------------------------------------------------
-
     try:
         response = (
             _ensure_client()
@@ -258,15 +172,6 @@ def search_similar_segments(
 
 
 def get_all_media() -> List[Dict[str, Any]]:
-    """
-    [TODO] media_files 테이블에서 전체 미디어 목록을 조회합니다.
-
-    요구사항:
-    1. 최신순(created_at DESC)으로 정렬하여 반환하세요.
-
-    Returns:
-        List[Dict]: 미디어 파일 목록
-    """
     try:
         response = (
             _ensure_client()
@@ -284,18 +189,6 @@ def get_all_media() -> List[Dict[str, Any]]:
 
 
 def get_media_segments(media_id: str) -> List[Dict[str, Any]]:
-    """
-    [TODO] 특정 미디어의 모든 세그먼트를 chunk_index 순서로 반환합니다.
-
-    Args:
-        media_id (str): 조회할 미디어 ID
-
-    Returns:
-        List[Dict]: 세그먼트 목록 (chunk_index ASC)
-    """
-    # ---------------------------------------------------------
-    # [TODO] 세그먼트 조회 로직 작성
-    # ---------------------------------------------------------
     try:
         response = (
             _ensure_client()

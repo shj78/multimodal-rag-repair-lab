@@ -35,6 +35,7 @@ from .supabase_utils import (
 from .evaluation_utils import run_full_evaluation
 from .chat_utils import get_answer_by_chat_model
 from .retrieval_utils import retrieve_segments
+from .correction_utils import correct_transcription_with_vision
 
 app = FastAPI(title="MediaFlow AI Agent")
 
@@ -124,6 +125,9 @@ async def process_media_background(
                     frame_analyses.append(
                         {"timestamp": frame["timestamp"], "description": description}
                     )
+
+        # ── 3.5단계: Vision-guided 전사 교정 ──
+        segments = correct_transcription_with_vision(segments, frame_analyses)
 
         # ── 4단계: 세그먼트 청킹 + 임베딩 + 저장 ──
         job_store[job_id]["status"] = "embedding"

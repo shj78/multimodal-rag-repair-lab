@@ -62,6 +62,10 @@ class Config:
     search_threshold: float = 0.3
     search_top_k: int = 3
 
+    # ── Correction ──
+    use_correction: bool = os.getenv("USE_CORRECTION", "false").lower() == "true"
+    correction_provider: str = os.getenv("CORRECTION_PROVIDER", "openai").lower()
+
     # ── Rerank ──
     use_rerank: bool = os.getenv("USE_RERANK", "false").lower() == "true"
     cohere_api_key: str = os.getenv("COHERE_API_KEY", "")
@@ -123,6 +127,15 @@ class EmbeddingCfg(BaseModel):
     openai_api_key: str = ""
 
 
+class CorrectionCfg(BaseModel):
+    enabled: bool
+    provider: str
+    openai_chat_model: str
+    ollama_chat_model: str
+    ollama_base: str = ""
+    openai_api_key: str = ""
+
+
 class RetrievalCfg(BaseModel):
     search_top_k: int
     search_threshold: float
@@ -154,6 +167,7 @@ class JudgeCfg(BaseModel):
 class PipelineConfig(BaseModel):
     transcription: TranscriptionCfg
     vision: VisionCfg
+    correction: CorrectionCfg
     embedding: EmbeddingCfg
     retrieval: RetrievalCfg
     qa: QACfg
@@ -180,6 +194,12 @@ _STAGE_FIELD_MAP: dict[str, dict[str, str]] = {
         "chunk_overlap_seconds": "chunk_overlap_seconds",
         "ollama_embed_model": "ollama_embed_model",
         "openai_embedding_model": "openai_embedding_model",
+    },
+    "correction": {
+        "enabled": "use_correction",
+        "provider": "correction_provider",
+        "openai_chat_model": "openai_chat_model",
+        "ollama_chat_model": "ollama_chat_model",
     },
     "retrieval": {
         "search_top_k": "search_top_k",
@@ -254,6 +274,14 @@ def get_stage_config() -> PipelineConfig:
             frames_per_minute=CONFIG.frames_per_minute,
             ollama_vision_model=CONFIG.ollama_vision_model,
             openai_vision_model=CONFIG.openai_vision_model,
+            ollama_base=CONFIG.ollama_base,
+            openai_api_key=CONFIG.openai_api_key,
+        ),
+        correction=CorrectionCfg(
+            enabled=CONFIG.use_correction,
+            provider=CONFIG.correction_provider,
+            openai_chat_model=CONFIG.openai_chat_model,
+            ollama_chat_model=CONFIG.ollama_chat_model,
             ollama_base=CONFIG.ollama_base,
             openai_api_key=CONFIG.openai_api_key,
         ),
@@ -332,6 +360,10 @@ print(
   Vision               : {_cfg.vision.openai_vision_model if _cfg.vision.provider == "openai" else _cfg.vision.ollama_vision_model}
   Embedding            : {_cfg.embedding.openai_embedding_model if _cfg.embedding.provider == "openai" else _cfg.embedding.ollama_embed_model}
   Chat                 : {_cfg.qa.openai_chat_model if _cfg.qa.provider == "openai" else _cfg.qa.ollama_chat_model}
+  ─ Correction ─
+  Use Correction       : {_cfg.correction.enabled}
+  Correction Provider  : {_cfg.correction.provider if _cfg.correction.enabled else "(disabled)"}
+  Correction Model     : {_cfg.correction.openai_chat_model if _cfg.correction.enabled and _cfg.correction.provider == "openai" else _cfg.correction.ollama_chat_model if _cfg.correction.enabled else "(disabled)"}
   ─ Search / Chunking ─
   Embedding Dim        : {_cfg.embedding.embedding_dim}
   Frames Per Minute    : {_cfg.vision.frames_per_minute}

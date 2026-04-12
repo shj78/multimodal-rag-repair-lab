@@ -47,7 +47,7 @@ VISION_PROMPTS = {
     ),
 }
 
-CURRENT_VISION_VERSION = "v4"
+CURRENT_VISION_VERSION = "v5-code"
 
 
 # ── QA 시스템 프롬프트 ──
@@ -196,6 +196,25 @@ EVAL_VISUAL_TEXT_ALIGNMENT_PROMPTS = {
 CURRENT_EVAL_VISUAL_TEXT_ALIGNMENT_VERSION = "v1"
 
 
+# ── 전사 교정 프롬프트 ──
+
+CORRECTION_PROMPTS = {
+    "v1": (
+        "[화면에 보이는 내용]\n"
+        "{frame_description}\n\n"
+        "[음성 전사 원문]\n"
+        "{transcription_text}\n\n"
+        "지시:\n"
+        "1. 화면의 코드·함수명·변수명과 관련된 발화는 화면 기준으로 교정한다.\n"
+        "2. 화면과 무관한 설명 문장은 원문 그대로 유지한다.\n"
+        "3. 화면에 없는 코드를 추측하여 추가하지 않는다.\n"
+        "교정된 전사 텍스트만 반환한다."
+    ),
+}
+
+CURRENT_CORRECTION_VERSION = "v1"
+
+
 # ── Rerank document 포맷 ──
 
 RERANK_DOC_TEMPLATES = {
@@ -213,6 +232,17 @@ def format_rerank_document(seg: dict, version: str = None) -> str:
         template = RERANK_DOC_TEMPLATES.get(f"{v}-vision", RERANK_DOC_TEMPLATES[v])
         return template.format(**seg)
     return RERANK_DOC_TEMPLATES[v].format(**seg)
+
+
+def get_correction_prompt(
+    frame_description: str, transcription_text: str, version: str = None
+) -> str:
+    """버전에 해당하는 전사 교정 프롬프트를 반환한다."""
+    v = version or CURRENT_CORRECTION_VERSION
+    return CORRECTION_PROMPTS[v].format(
+        frame_description=frame_description,
+        transcription_text=transcription_text,
+    )
 
 
 def get_vision_prompt(timestamp: float, version: str = None) -> str:

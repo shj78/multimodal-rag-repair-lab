@@ -12,6 +12,8 @@ from typing import Any, Dict
 
 from .config import get_stage_config
 from .prompts import (
+    CORRECTION_PROMPTS,
+    CURRENT_CORRECTION_VERSION,
     CURRENT_EVAL_ANSWER_RELEVANCE_VERSION,
     CURRENT_EVAL_GROUNDEDNESS_VERSION,
     CURRENT_EVAL_RETRIEVAL_PRECISION_VERSION,
@@ -66,6 +68,15 @@ def get_config_snapshot() -> Dict[str, Any]:
         "embedding_dim": embedding.embedding_dim,
         "chunk_window_seconds": embedding.chunk_window_seconds,
         "chunk_overlap_seconds": embedding.chunk_overlap_seconds,
+        # ── Correction ──
+        "use_correction": cfg.correction.enabled,
+        "correction_provider": cfg.correction.provider,
+        "correction_model": (
+            cfg.correction.openai_chat_model
+            if cfg.correction.provider == "openai"
+            else cfg.correction.ollama_chat_model
+        ),
+        "correction_prompt_version": CURRENT_CORRECTION_VERSION,
         # ── QA ──
         "chat_provider": qa.provider,
         "chat_model": (
@@ -97,6 +108,10 @@ def get_prompt_snapshot() -> Dict[str, Any]:
         "qa_system": {
             "version": CURRENT_QA_SYSTEM_VERSION,
             "text": QA_SYSTEM_PROMPTS[CURRENT_QA_SYSTEM_VERSION],
+        },
+        "correction": {
+            "version": CURRENT_CORRECTION_VERSION,
+            "text": CORRECTION_PROMPTS[CURRENT_CORRECTION_VERSION],
         },
         "rerank_doc": {
             "version": CURRENT_RERANK_DOC_VERSION,

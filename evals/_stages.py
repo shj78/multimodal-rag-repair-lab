@@ -125,17 +125,26 @@ def run_vision(
 def run_embed_and_save(
     segments: List[Dict], frame_analyses: List[Dict], config_snapshot: dict
 ) -> Tuple[str, int]:
-    """청킹 + 임베딩 + DB 저장.
+    """Vision-guided 교정 → 청킹 + 임베딩 + DB 저장.
 
     Returns:
         (media_id, latency_ms)
     """
+    from app.correction_utils import correct_transcription_with_vision
     from app.media_utils import (
         combine_multimodal_context,
         get_text_embedding,
         segment_transcript,
     )
     from app.supabase_utils import save_media_file, save_segment, update_media_status
+
+    # ── correction (enabled 시에만) ──
+    correction_cfg = get_stage_config().correction
+    if correction_cfg.enabled and frame_analyses:
+        print("[embed] Vision-guided 전사 교정 중...")
+        with timer() as t_correction:
+            segments = correct_transcription_with_vision(segments, frame_analyses, correction_cfg)
+        print(f"[embed] 교정 완료 ({t_correction()}ms)")
 
     media_id = str(uuid.uuid4())
 

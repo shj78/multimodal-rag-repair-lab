@@ -66,6 +66,9 @@ FINGERPRINT_KEYS = {
         "vision_model",
         "prompt_version",
         "frames_per_minute",
+        # correction — ON/OFF나 prompt 버전이 다르면 다른 DB 행이 생성됨
+        "use_correction",
+        "correction_prompt_version",
         # embedding
         "embedding_provider",
         "embed_model",

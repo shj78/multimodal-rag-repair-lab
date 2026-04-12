@@ -92,54 +92,108 @@ CURRENT_QA_SYSTEM_VERSION = "v1"
 
 # ── 평가 프롬프트 (LLM-as-Judge) ──
 
-EVAL_ANSWER_RELEVANCE_PROMPT = (
-    "당신은 답변 품질 평가자입니다.\n"
-    "아래 질문에 대해 답변이 얼마나 적절한지 0.0~1.0으로 평가하세요.\n\n"
-    "평가 기준:\n"
-    "- 1.0: 질문의 핵심을 정확히 답변함\n"
-    "- 0.7~0.9: 대체로 관련 있지만 일부 부정확하거나 불완전함\n"
-    "- 0.4~0.6: 부분적으로만 관련 있음\n"
-    "- 0.1~0.3: 거의 관련 없음\n"
-    "- 0.0: 완전히 무관하거나 답변 거부\n\n"
-    "숫자 하나만 반환하세요.\n"
-    "질문: {question}\n답변: {answer}"
-)
+EVAL_ANSWER_RELEVANCE_PROMPTS = {
+    "v1": (
+        "당신은 답변 품질 평가자입니다.\n"
+        "아래 질문에 대해 답변이 얼마나 적절한지 0.0~1.0으로 평가하세요.\n\n"
+        "평가 기준:\n"
+        "- 1.0: 질문의 핵심을 정확히 답변함\n"
+        "- 0.7~0.9: 대체로 관련 있지만 일부 부정확하거나 불완전함\n"
+        "- 0.4~0.6: 부분적으로만 관련 있음\n"
+        "- 0.1~0.3: 거의 관련 없음\n"
+        "- 0.0: 완전히 무관하거나 답변 거부\n\n"
+        "숫자 하나만 반환하세요.\n"
+        "질문: {question}\n답변: {answer}"
+    ),
+    "v2": (
+        "당신은 답변 품질 평가자입니다.\n"
+        "아래 질문에 대해 답변이 얼마나 적절한지 0.0~1.0으로 평가하세요.\n\n"
+        "평가 기준:\n"
+        "- 1.0: 질문의 핵심을 정확히 답변함\n"
+        "- 0.7~0.9: 대체로 관련 있지만 일부 부정확하거나 불완전함\n"
+        "- 0.7: 영상/문서에 해당 정보가 없어서 '확인되지 않습니다', '없습니다'라고 "
+        "올바르게 거부한 경우 (올바른 거부는 좋은 답변임)\n"
+        "- 0.4~0.6: 부분적으로만 관련 있음\n"
+        "- 0.1~0.3: 거의 관련 없거나 잘못된 정보를 포함함\n"
+        "- 0.0: 완전히 무관한 답변\n\n"
+        "동의어·유사 표현 규칙:\n"
+        "- '꼬마=어린이=아이', '증가=성장=상승', '15%=15퍼센트' 등 "
+        "의미가 같으면 동일한 답변으로 취급하세요.\n"
+        "- 화면 캡처(코드, 슬라이드)에서 추출한 정보도 유효한 근거입니다.\n\n"
+        "숫자 하나만 반환하세요.\n"
+        "질문: {question}\n답변: {answer}"
+    ),
+}
 
-EVAL_GROUNDEDNESS_PROMPT = (
-    "당신은 근거성 평가자입니다.\n"
-    "아래 답변이 주어진 컨텍스트의 내용에만 근거하는지 0.0~1.0으로 평가하세요.\n\n"
-    "평가 기준:\n"
-    "- 1.0: 답변의 모든 내용이 컨텍스트에서 직접 확인됨\n"
-    "- 0.7~0.9: 대부분 컨텍스트에 근거하지만 약간의 추론 포함\n"
-    "- 0.4~0.6: 일부 내용만 컨텍스트에서 확인 가능\n"
-    "- 0.1~0.3: 컨텍스트에 없는 내용을 상당히 포함 (할루시네이션)\n"
-    "- 0.0: 컨텍스트와 무관한 답변\n\n"
-    "숫자 하나만 반환하세요.\n"
-    "컨텍스트: {context}\n답변: {answer}"
-)
+CURRENT_EVAL_ANSWER_RELEVANCE_VERSION = "v1"
 
-EVAL_RETRIEVAL_PRECISION_PROMPT = (
-    "당신은 검색 품질 평가자입니다.\n"
-    "아래 질문에 답변하기 위해 이 텍스트가 유용한 정보를 포함하고 있는지 판단하세요.\n\n"
-    "판단 기준:\n"
-    "- 질문이 '언제', '몇 초'를 묻더라도, 해당 주제에 대한 내용이 텍스트에 있으면 관련 있음(1)\n"
-    "- 질문의 핵심 주제(사람, 사건, 장소 등)와 텍스트의 내용이 의미적으로 관련되면 1\n"
-    "- 텍스트가 질문의 주제와 전혀 무관한 내용이면 0\n\n"
-    "1 또는 0만 반환하세요.\n"
-    "질문: {question}\n텍스트: {text}"
-)
 
-EVAL_VISUAL_TEXT_ALIGNMENT_PROMPT = (
-    "영상의 한 구간에서 추출한 시각 정보와 음성 정보입니다.\n"
-    "두 정보가 같은 장면·맥락에서 나온 것인지 정합성을 평가하세요.\n\n"
-    "평가 기준:\n"
-    "- 시각 묘사의 장소·인물·상황이 음성 대화의 맥락과 일치하는가\n"
-    "- 시각에서 보이는 행동이 음성에서 언급하는 내용과 부합하는가\n"
-    "- 완전히 무관하면 0.0, 같은 장면에서 자연스럽게 나올 수 있으면 1.0\n\n"
-    "숫자만 반환하세요.\n\n"
-    "[시각 정보] {frame_description}\n"
-    "[음성 정보] {transcript_text}"
-)
+EVAL_GROUNDEDNESS_PROMPTS = {
+    "v1": (
+        "당신은 근거성 평가자입니다.\n"
+        "아래 답변이 주어진 컨텍스트의 내용에만 근거하는지 0.0~1.0으로 평가하세요.\n\n"
+        "평가 기준:\n"
+        "- 1.0: 답변의 모든 내용이 컨텍스트에서 직접 확인됨\n"
+        "- 0.7~0.9: 대부분 컨텍스트에 근거하지만 약간의 추론 포함\n"
+        "- 0.4~0.6: 일부 내용만 컨텍스트에서 확인 가능\n"
+        "- 0.1~0.3: 컨텍스트에 없는 내용을 상당히 포함 (할루시네이션)\n"
+        "- 0.0: 컨텍스트와 무관한 답변\n\n"
+        "숫자 하나만 반환하세요.\n"
+        "컨텍스트: {context}\n답변: {answer}"
+    ),
+    "v2": (
+        "당신은 근거성 평가자입니다.\n"
+        "아래 답변이 주어진 컨텍스트의 내용에만 근거하는지 0.0~1.0으로 평가하세요.\n\n"
+        "평가 기준:\n"
+        "- 1.0: 답변의 모든 내용이 컨텍스트에서 직접 확인됨\n"
+        "- 0.7~0.9: 대부분 컨텍스트에 근거하지만 약간의 추론 포함\n"
+        "- 0.7: '확인되지 않습니다'라는 거부 답변이 컨텍스트에 해당 정보가 실제로 없는 경우\n"
+        "- 0.4~0.6: 일부 내용만 컨텍스트에서 확인 가능\n"
+        "- 0.1~0.3: 컨텍스트에 없는 내용을 상당히 포함 (할루시네이션)\n"
+        "- 0.0: 컨텍스트와 무관한 답변\n\n"
+        "근거 출처 규칙:\n"
+        "- [전사], [화면코드], [화면설명], [화면키워드], [비전] 태그가 붙은 내용은 "
+        "모두 유효한 컨텍스트입니다.\n"
+        "- 화면에서 추출한 코드나 텍스트([화면코드], [화면결과])도 전사와 동등한 근거입니다.\n\n"
+        "숫자 하나만 반환하세요.\n"
+        "컨텍스트: {context}\n답변: {answer}"
+    ),
+}
+
+CURRENT_EVAL_GROUNDEDNESS_VERSION = "v1"
+
+
+EVAL_RETRIEVAL_PRECISION_PROMPTS = {
+    "v1": (
+        "당신은 검색 품질 평가자입니다.\n"
+        "아래 질문에 답변하기 위해 이 텍스트가 유용한 정보를 포함하고 있는지 판단하세요.\n\n"
+        "판단 기준:\n"
+        "- 질문이 '언제', '몇 초'를 묻더라도, 해당 주제에 대한 내용이 텍스트에 있으면 관련 있음(1)\n"
+        "- 질문의 핵심 주제(사람, 사건, 장소 등)와 텍스트의 내용이 의미적으로 관련되면 1\n"
+        "- 텍스트가 질문의 주제와 전혀 무관한 내용이면 0\n\n"
+        "1 또는 0만 반환하세요.\n"
+        "질문: {question}\n텍스트: {text}"
+    ),
+}
+
+CURRENT_EVAL_RETRIEVAL_PRECISION_VERSION = "v1"
+
+
+EVAL_VISUAL_TEXT_ALIGNMENT_PROMPTS = {
+    "v1": (
+        "영상의 한 구간에서 추출한 시각 정보와 음성 정보입니다.\n"
+        "두 정보가 같은 장면·맥락에서 나온 것인지 정합성을 평가하세요.\n\n"
+        "평가 기준:\n"
+        "- 시각 묘사의 장소·인물·상황이 음성 대화의 맥락과 일치하는가\n"
+        "- 시각에서 보이는 행동이 음성에서 언급하는 내용과 부합하는가\n"
+        "- 완전히 무관하면 0.0, 같은 장면에서 자연스럽게 나올 수 있으면 1.0\n\n"
+        "숫자만 반환하세요.\n\n"
+        "[시각 정보] {frame_description}\n"
+        "[음성 정보] {transcript_text}"
+    ),
+}
+
+CURRENT_EVAL_VISUAL_TEXT_ALIGNMENT_VERSION = "v1"
 
 
 # ── Rerank document 포맷 ──
@@ -172,3 +226,23 @@ def get_qa_system_prompt(version: str = None) -> str:
     """버전에 해당하는 QA 시스템 프롬프트를 반환한다."""
     v = version or CURRENT_QA_SYSTEM_VERSION
     return QA_SYSTEM_PROMPTS[v]
+
+
+def get_eval_answer_relevance_prompt(version: str = None) -> str:
+    v = version or CURRENT_EVAL_ANSWER_RELEVANCE_VERSION
+    return EVAL_ANSWER_RELEVANCE_PROMPTS[v]
+
+
+def get_eval_groundedness_prompt(version: str = None) -> str:
+    v = version or CURRENT_EVAL_GROUNDEDNESS_VERSION
+    return EVAL_GROUNDEDNESS_PROMPTS[v]
+
+
+def get_eval_retrieval_precision_prompt(version: str = None) -> str:
+    v = version or CURRENT_EVAL_RETRIEVAL_PRECISION_VERSION
+    return EVAL_RETRIEVAL_PRECISION_PROMPTS[v]
+
+
+def get_eval_visual_text_alignment_prompt(version: str = None) -> str:
+    v = version or CURRENT_EVAL_VISUAL_TEXT_ALIGNMENT_VERSION
+    return EVAL_VISUAL_TEXT_ALIGNMENT_PROMPTS[v]

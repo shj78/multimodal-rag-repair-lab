@@ -8,10 +8,10 @@ from app.retrieval_utils import retrieve_segments
 
 from app.config import JudgeCfg, get_stage_config
 from app.prompts import (
-    EVAL_ANSWER_RELEVANCE_PROMPT,
-    EVAL_GROUNDEDNESS_PROMPT,
-    EVAL_RETRIEVAL_PRECISION_PROMPT,
-    EVAL_VISUAL_TEXT_ALIGNMENT_PROMPT,
+    get_eval_answer_relevance_prompt,
+    get_eval_groundedness_prompt,
+    get_eval_retrieval_precision_prompt,
+    get_eval_visual_text_alignment_prompt,
 )
 
 
@@ -63,14 +63,14 @@ def calculate_wer_cer(reference: str, hypothesis: str) -> Tuple[float, float]:
 
 
 def calculate_answer_relevance(question: str, answer: str) -> float:
-    prompt = EVAL_ANSWER_RELEVANCE_PROMPT.format(question=question, answer=answer)
+    prompt = get_eval_answer_relevance_prompt().format(question=question, answer=answer)
     raw = _llm_chat(prompt)
     match = re.search(r"\d+\.?\d*", raw)
     return float(match.group()) if match else 0.0
 
 
 def calculate_groundedness(answer: str, context: str) -> float:
-    prompt = EVAL_GROUNDEDNESS_PROMPT.format(context=context, answer=answer)
+    prompt = get_eval_groundedness_prompt().format(context=context, answer=answer)
     raw = _llm_chat(prompt)
     match = re.search(r"\d+\.?\d*", raw)
     return float(match.group()) if match else 0.0
@@ -84,7 +84,7 @@ def calculate_retrieval_precision(
 
     relevant_count = 0
     for seg in retrieved_segments:
-        prompt = EVAL_RETRIEVAL_PRECISION_PROMPT.format(
+        prompt = get_eval_retrieval_precision_prompt().format(
             question=question, text=seg.get("text", "")
         )
         raw = _llm_chat(prompt)
@@ -227,7 +227,7 @@ def calculate_visual_text_alignment(
     Returns:
         float: 정렬 점수 (0.0~1.0)
     """
-    prompt = EVAL_VISUAL_TEXT_ALIGNMENT_PROMPT.format(
+    prompt = get_eval_visual_text_alignment_prompt().format(
         frame_description=frame_description, transcript_text=transcript_text
     )
     raw = _llm_chat(prompt)

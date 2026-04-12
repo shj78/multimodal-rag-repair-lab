@@ -12,13 +12,17 @@ from typing import Any, Dict
 
 from .config import get_stage_config
 from .prompts import (
+    CURRENT_EVAL_ANSWER_RELEVANCE_VERSION,
+    CURRENT_EVAL_GROUNDEDNESS_VERSION,
+    CURRENT_EVAL_RETRIEVAL_PRECISION_VERSION,
+    CURRENT_EVAL_VISUAL_TEXT_ALIGNMENT_VERSION,
     CURRENT_QA_SYSTEM_VERSION,
     CURRENT_RERANK_DOC_VERSION,
     CURRENT_VISION_VERSION,
-    EVAL_ANSWER_RELEVANCE_PROMPT,
-    EVAL_GROUNDEDNESS_PROMPT,
-    EVAL_RETRIEVAL_PRECISION_PROMPT,
-    EVAL_VISUAL_TEXT_ALIGNMENT_PROMPT,
+    EVAL_ANSWER_RELEVANCE_PROMPTS,
+    EVAL_GROUNDEDNESS_PROMPTS,
+    EVAL_RETRIEVAL_PRECISION_PROMPTS,
+    EVAL_VISUAL_TEXT_ALIGNMENT_PROMPTS,
     QA_SYSTEM_PROMPTS,
     RERANK_DOC_TEMPLATES,
     VISION_PROMPTS,
@@ -98,8 +102,24 @@ def get_prompt_snapshot() -> Dict[str, Any]:
             "version": CURRENT_RERANK_DOC_VERSION,
             "text": RERANK_DOC_TEMPLATES[CURRENT_RERANK_DOC_VERSION],
         },
-        "eval_answer_relevance": EVAL_ANSWER_RELEVANCE_PROMPT,
-        "eval_groundedness": EVAL_GROUNDEDNESS_PROMPT,
-        "eval_retrieval_precision": EVAL_RETRIEVAL_PRECISION_PROMPT,
-        "eval_visual_text_alignment": EVAL_VISUAL_TEXT_ALIGNMENT_PROMPT,
+        "eval_answer_relevance": {
+            "version": CURRENT_EVAL_ANSWER_RELEVANCE_VERSION,
+            "text": EVAL_ANSWER_RELEVANCE_PROMPTS[CURRENT_EVAL_ANSWER_RELEVANCE_VERSION],
+        },
+        "eval_groundedness": {
+            "version": CURRENT_EVAL_GROUNDEDNESS_VERSION,
+            "text": EVAL_GROUNDEDNESS_PROMPTS[CURRENT_EVAL_GROUNDEDNESS_VERSION],
+        },
+        "eval_retrieval_precision": {
+            "version": CURRENT_EVAL_RETRIEVAL_PRECISION_VERSION,
+            "text": EVAL_RETRIEVAL_PRECISION_PROMPTS[
+                CURRENT_EVAL_RETRIEVAL_PRECISION_VERSION
+            ],
+        },
+        "eval_visual_text_alignment": {
+            "version": CURRENT_EVAL_VISUAL_TEXT_ALIGNMENT_VERSION,
+            "text": EVAL_VISUAL_TEXT_ALIGNMENT_PROMPTS[
+                CURRENT_EVAL_VISUAL_TEXT_ALIGNMENT_VERSION
+            ],
+        },
     }

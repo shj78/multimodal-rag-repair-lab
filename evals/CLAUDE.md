@@ -363,6 +363,8 @@ fixture에는 실험 조건(메타)과 실제 결과(데이터)를 함께 저장
 
 프롬프트는 **버전 단위**로 `app/prompts.py`에서 관리한다. 프롬프트 변형이 필요하면 새 버전을 등록한다.
 
+생성·파이프라인용 프롬프트(`VISION_PROMPTS`, `QA_SYSTEM_PROMPTS`, `RERANK_DOC_TEMPLATES`)와 평가용 프롬프트(`EVAL_ANSWER_RELEVANCE_PROMPTS`, `EVAL_GROUNDEDNESS_PROMPTS`, `EVAL_RETRIEVAL_PRECISION_PROMPTS`, `EVAL_VISUAL_TEXT_ALIGNMENT_PROMPTS`) 모두 동일한 `{version: text}` dict + `CURRENT_*_VERSION` 포맷을 따른다.
+
 ```python
 # app/prompts.py
 VISION_PROMPTS = {
@@ -370,16 +372,31 @@ VISION_PROMPTS = {
     "v2": "This is a frame captured at {timestamp:.1f}s from an interview video. ...",
 }
 CURRENT_VISION_VERSION = "v2"
+
+EVAL_ANSWER_RELEVANCE_PROMPTS = {
+    "v1": "...",  # 수정 전 원본
+    "v2": "...",  # 거부 답변 0.7, 동의어 규칙 추가
+}
+CURRENT_EVAL_ANSWER_RELEVANCE_VERSION = "v2"
 ```
 
-실험 결과 JSON에는 버전 + 전문이 자동 기록된다:
+호출부는 상수를 직접 참조하지 않고 getter(`get_vision_prompt`, `get_qa_system_prompt`, `get_eval_answer_relevance_prompt` 등)를 통한다. 버전 override가 필요하면 인자로 전달(`get_eval_groundedness_prompt("v1")`).
+
+실험 결과 JSON에는 파이프라인 + 평가 프롬프트 7종의 버전 + 전문이 자동 기록된다:
 
 ```json
 "prompts": {
   "vision": { "version": "v2", "text": "This is a frame captured at ..." },
-  "qa_system": { "version": "v1", "text": "[역할] 너는 업로드된 ..." }
+  "qa_system": { "version": "v1", "text": "[역할] 너는 업로드된 ..." },
+  "rerank_doc": { "version": "v1", "text": "[{start_time:.0f}s] {text}" },
+  "eval_answer_relevance": { "version": "v2", "text": "당신은 답변 품질 평가자입니다 ..." },
+  "eval_groundedness": { "version": "v2", "text": "당신은 근거성 평가자입니다 ..." },
+  "eval_retrieval_precision": { "version": "v1", "text": "당신은 검색 품질 평가자입니다 ..." },
+  "eval_visual_text_alignment": { "version": "v1", "text": "영상의 한 구간에서 ..." }
 }
 ```
+
+> **스키마 변경 주의**: 2026-04-12 이전 `evals/results/*.json`에서는 `eval_*` 항목이 `{version, text}` 형태가 아닌 flat string이었다. 결과 비교 스크립트를 작성할 때 두 스키마가 혼재할 수 있음을 고려한다.
 
 ---
 
@@ -420,7 +437,12 @@ CURRENT_VISION_VERSION = "v2"
   },
   "prompts": {
     "vision": { "version": "v2", "text": "..." },
-    "qa_system": { "version": "v1", "text": "..." }
+    "qa_system": { "version": "v1", "text": "..." },
+    "rerank_doc": { "version": "v1", "text": "..." },
+    "eval_answer_relevance": { "version": "v2", "text": "..." },
+    "eval_groundedness": { "version": "v2", "text": "..." },
+    "eval_retrieval_precision": { "version": "v1", "text": "..." },
+    "eval_visual_text_alignment": { "version": "v1", "text": "..." }
   },
   "latency_ms": {
     "transcribe": 39592,

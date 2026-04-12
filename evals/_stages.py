@@ -48,6 +48,7 @@ def run_transcribe(
             "transcription_provider": config_snapshot["transcription_provider"],
             "whisper_model_size": config_snapshot["whisper_model_size"],
             "openai_whisper_model": config_snapshot["openai_whisper_model"],
+            "whisper_prompt_version": config_snapshot.get("whisper_prompt_version", ""),
         },
         latency_ms=t_transcribe(),
     )

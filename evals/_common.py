@@ -45,6 +45,7 @@ FINGERPRINT_KEYS = {
         "transcription_provider",
         "whisper_model_size",
         "openai_whisper_model",
+        "whisper_prompt_version",
     ),
     # ── Vision fixture ──
     "frame_analyses": (
@@ -61,6 +62,7 @@ FINGERPRINT_KEYS = {
         "transcription_provider",
         "whisper_model_size",
         "openai_whisper_model",
+        "whisper_prompt_version",
         # vision
         "vision_provider",
         "vision_model",
@@ -145,9 +147,6 @@ def validate_fixture_fingerprint(
     for key in keys:
         fixture_val = fixture_config.get(key)
         current_val = current_config.get(key)
-        # 하위 호환: 기존 fixture에 openai_whisper_model 키가 없는 경우 스킵
-        if fixture_val is None and key == "openai_whisper_model":
-            continue
         if fixture_val != current_val:
             mismatches.append(f"{key}: fixture={fixture_val} → current={current_val}")
 
@@ -236,9 +235,6 @@ def find_media_id_or_exit(dataset: str, config_snapshot: dict) -> str:
         mismatches = []
         for key in keys:
             result_val = result_config.get(key)
-            # 하위 호환: 기존 results에 openai_whisper_model 키가 없는 경우 스킵
-            if result_val is None and key == "openai_whisper_model":
-                continue
             if result_val != config_snapshot.get(key):
                 mismatches.append(
                     f"{key}: result={result_val} → current={config_snapshot.get(key)}"

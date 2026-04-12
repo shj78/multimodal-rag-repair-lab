@@ -9,10 +9,13 @@ Vision 분석(frame_analyses) 결과를 근거로 Whisper 전사 세그먼트의
 - 교정 실패 시 경고 로그 후 원문 유지 (파이프라인 중단 없음).
 """
 
+import json
 import logging
+import re
+import time
 
 import requests
-from openai import OpenAI
+from openai import OpenAI, RateLimitError
 
 from .config import CorrectionCfg, get_stage_config
 from .prompts import get_correction_prompt
@@ -46,9 +49,8 @@ def correct_transcription_with_vision(
             corrected.append(seg)
             continue
         try:
-            corrected_text = _call_llm_correction(
-                seg["text"], frame["description"], cfg
-            )
+            raw = _call_llm_correction(seg["text"], frame["description"], cfg)
+            corrected_text = _parse_correction_response(raw, seg["text"])
             corrected.append({**seg, "text": corrected_text})
         except Exception as e:
             logger.warning(
@@ -71,14 +73,76 @@ def _find_overlapping_frame(
     return None
 
 
+def _parse_correction_response(raw: str, original_text: str) -> str:
+    """LLM 응답에서 교정된 텍스트를 추출한다.
+
+    v1은 plain text, v2는 {"corrected": "...", "changes": [...]} JSON을 반환한다.
+    JSON 파싱 실패 또는 길이 폭주(원문의 1.3배 초과) 시 원문을 유지한다 —
+    프롬프트 제약이 뚫려도 retrieval 오염을 막는 2차 방어선.
+    """
+    text = raw.strip()
+
+    parsed = _try_parse_json(text)
+    if parsed is not None:
+        text = parsed.get("corrected", original_text).strip()
+
+    if len(text) > len(original_text) * 1.3:
+        logger.warning(
+            "교정 결과가 원문의 1.3배 초과 (원문 유지): %d → %d자",
+            len(original_text),
+            len(text),
+        )
+        return original_text
+
+    return text
+
+
+def _try_parse_json(text: str) -> dict | None:
+    """JSON 블록을 추출해 파싱. 실패하면 None."""
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    match = re.search(r"\{.*\}", text, re.DOTALL)
+    if not match:
+        return None
+    try:
+        return json.loads(match.group(0))
+    except json.JSONDecodeError:
+        return None
+
+
+_RATE_LIMIT_BACKOFF_SECONDS = (2, 5, 15)
+
+
 def _call_llm_correction(
     transcription_text: str, frame_description: str, cfg: CorrectionCfg
 ) -> str:
-    """LLM을 호출하여 전사 텍스트를 교정하고 교정된 텍스트를 반환한다."""
+    """LLM을 호출하여 전사 텍스트를 교정하고 교정된 텍스트를 반환한다.
+
+    비전 단계가 TPM을 소진하면 correction 호출이 429로 전부 실패하므로
+    rate limit에 한해 지수 백오프로 재시도한다. 기타 에러는 즉시 전파되어
+    correct_transcription_with_vision() 레벨의 except가 원문 유지로 처리.
+    """
     prompt = get_correction_prompt(frame_description, transcription_text)
 
     if cfg.provider == "openai":
         client = OpenAI(api_key=cfg.openai_api_key)
+        for attempt, backoff in enumerate(_RATE_LIMIT_BACKOFF_SECONDS):
+            try:
+                resp = client.chat.completions.create(
+                    model=cfg.openai_chat_model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.0,
+                )
+                return resp.choices[0].message.content.strip()
+            except RateLimitError:
+                logger.info(
+                    "rate limit hit, retrying in %ds (attempt %d)",
+                    backoff,
+                    attempt + 1,
+                )
+                time.sleep(backoff)
         resp = client.chat.completions.create(
             model=cfg.openai_chat_model,
             messages=[{"role": "user", "content": prompt}],

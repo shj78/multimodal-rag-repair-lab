@@ -5,6 +5,29 @@ prompts.py — 프롬프트 버전 관리
 실험 결과 JSON에는 버전 + 전문이 자동 기록된다.
 """
 
+# ── 전사 힌트 프롬프트 ──
+# Whisper initial_prompt / prompt 파라미터에 전달한다.
+# 도메인 어휘를 힌트로 제공해 음차 전사(예: "프린트" → "print")를 방지한다.
+
+TRANSCRIPTION_PROMPTS = {
+    "v1": (
+        "파이썬 프로그래밍 강의입니다. "
+        "주요 파이썬 내장 함수: print(), input(), int(), float(), str(), "
+        "len(), range(), list(), dict(), type(), sum(), max(), min(), "
+        "sorted(), append(), split(). "
+        "for, while, if, elif, else, def, return, import, class."
+    ),
+}
+CURRENT_TRANSCRIPTION_VERSION = "v1"
+
+
+def get_transcription_prompt(version: str | None = None) -> str | None:
+    """version이 빈 문자열/None이면 None, 아니면 TRANSCRIPTION_PROMPTS[version]."""
+    if not version:
+        return None
+    return TRANSCRIPTION_PROMPTS[version]
+
+
 # ── 비전 프롬프트 ──
 
 VISION_PROMPTS = {
@@ -245,7 +268,7 @@ CORRECTION_PROMPTS = {
     ),
 }
 
-CURRENT_CORRECTION_VERSION = "v1"
+CURRENT_CORRECTION_VERSION = "v2"
 
 
 # ── Rerank document 포맷 ──

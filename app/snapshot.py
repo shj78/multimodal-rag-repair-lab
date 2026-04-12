@@ -27,6 +27,7 @@ from .prompts import (
     EVAL_VISUAL_TEXT_ALIGNMENT_PROMPTS,
     QA_SYSTEM_PROMPTS,
     RERANK_DOC_TEMPLATES,
+    TRANSCRIPTION_PROMPTS,
     VISION_PROMPTS,
 )
 
@@ -49,6 +50,7 @@ def get_config_snapshot() -> Dict[str, Any]:
         "transcription_provider": transcription.provider,
         "whisper_model_size": transcription.whisper_model_size,
         "openai_whisper_model": transcription.openai_whisper_model,
+        "whisper_prompt_version": transcription.whisper_prompt_version,
         # ── Vision ──
         "vision_provider": vision.provider,
         "vision_model": (
@@ -100,7 +102,13 @@ def get_prompt_snapshot() -> Dict[str, Any]:
 
     config-규약 "누락 추가" 항목: rerank doc prompt, EVAL_* 4종 포함.
     """
+    transcription_cfg = get_stage_config().transcription
+    prompt_ver = transcription_cfg.whisper_prompt_version
     return {
+        "transcription": {
+            "version": prompt_ver or "(none)",
+            "text": TRANSCRIPTION_PROMPTS.get(prompt_ver, ""),
+        },
         "vision": {
             "version": CURRENT_VISION_VERSION,
             "text": VISION_PROMPTS[CURRENT_VISION_VERSION],

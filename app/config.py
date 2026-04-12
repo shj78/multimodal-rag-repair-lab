@@ -15,6 +15,7 @@ class Config:
     transcribe_provider: str = os.getenv("TRANSCRIBE_PROVIDER", "local").lower()
     whisper_model_size: str = os.getenv("WHISPER_MODEL_SIZE", "large-v3-turbo")
     openai_whisper_model: str = os.getenv("OPENAI_WHISPER_MODEL", "whisper-1")
+    whisper_prompt_version: str = os.getenv("WHISPER_PROMPT_VERSION", "")
 
     # ── Vision ──
     vision_provider: str = os.getenv("VISION_PROVIDER", "local").lower()
@@ -104,6 +105,7 @@ class TranscriptionCfg(BaseModel):
     provider: str
     whisper_model_size: str  # local: faster-whisper 모델 크기
     openai_whisper_model: str  # openai: Whisper API 모델명
+    whisper_prompt_version: str = ""  # 빈 문자열 = prompt 비활성
     openai_api_key: str = ""
 
 
@@ -181,6 +183,7 @@ _STAGE_FIELD_MAP: dict[str, dict[str, str]] = {
         "provider": "transcribe_provider",
         "whisper_model_size": "whisper_model_size",
         "openai_whisper_model": "openai_whisper_model",
+        "whisper_prompt_version": "whisper_prompt_version",
     },
     "vision": {
         "provider": "vision_provider",
@@ -267,6 +270,7 @@ def get_stage_config() -> PipelineConfig:
             provider=CONFIG.transcribe_provider,
             whisper_model_size=CONFIG.whisper_model_size,
             openai_whisper_model=CONFIG.openai_whisper_model,
+            whisper_prompt_version=CONFIG.whisper_prompt_version,
             openai_api_key=CONFIG.openai_api_key,
         ),
         vision=VisionCfg(

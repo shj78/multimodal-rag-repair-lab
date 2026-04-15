@@ -5,27 +5,29 @@ main.py:process_media_background에 붙어 있던 "audio 추출 → 전사 → �
 교정 → 청킹/임베딩/저장" 흐름을 하나로 모은 pipeline. qa_pipeline.run_qa와 짝을
 이루는 두 번째 pipeline으로 pipelines/ 폴더가 성립한다.
 
-LangSmith trace 구조 (이름 규칙: 루트는 도메인 prefix만, 말단은 번호):
+LangSmith trace 구조 (이름 규칙: 루트/묶음은 도메인 prefix만, 말단은 번호):
     ingest.request (root, chain)
-      ├─ ingest.1_audio_extract    (tool)
-      ├─ ingest.2_transcribe       (tool)
-      ├─ ingest.3_extract_frames   (tool)
-      ├─ ingest.4_analyze_frame    (tool) × 프레임 수
-      ├─ ingest.5_correct          (tool)
-      ├─ ingest.6_chunk            (tool)
-      └─ per-chunk 루프:
-          ├─ ingest.7_multimodal    (tool)
-          └─ ingest.8_embed_chunk   (embedding)
+      ├─ ingest.transcribe       (chain)
+      │   ├─ ingest.1_audio_extract  (tool)
+      │   └─ ingest.2_transcribe     (tool)
+      ├─ ingest.vision           (chain)
+      │   ├─ ingest.3_extract_frames (tool)
+      │   └─ ingest.4_analyze_frame  (llm) × 프레임 수
+      ├─ ingest.5_correct        (llm)    # 실제 교정이 돌 때만
+      └─ ingest.embed            (chain)
+          ├─ ingest.6_chunk         (tool)
+          ├─ ingest.7_multimodal    (tool) × 청크 수
+          └─ ingest.8_embed_chunk   (embedding) × 청크 수
 """
 
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from langsmith import traceable
 from openai import AuthenticationError as OpenAIAuthError
 
 from ..config import CONFIG, get_stage_config
-from ..diagnostics import StageTimer, get_config_snapshot
+from ..diagnostics import StageTimer, get_config_snapshot, timer
 from ..embedding import embed_chunk
 from ..ingest.chunking import segment_transcript
 from ..ingest.correction import correct_transcription_with_vision
@@ -45,6 +47,92 @@ _VIDEO_EXTS = {"mp4", "mov", "avi", "mkv", "webm"}
 
 def _is_video_file(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in _VIDEO_EXTS
+
+
+@traceable(name="ingest.transcribe", run_type="chain")
+def _trace_transcribe(
+    file_path: str,
+    media_id: str,
+    is_video: bool,
+) -> Tuple[List[Dict[str, Any]], int, int]:
+    cfg = get_stage_config().transcription
+
+    with timer() as t_audio:
+        if is_video:
+            audio_path = os.path.join(CONFIG.upload_dir, f"{media_id}_audio.wav")
+            extract_audio_from_video(file_path, audio_path)
+        else:
+            audio_path = file_path
+
+    with timer() as t_transcribe:
+        segments = transcribe_audio(audio_path, cfg=cfg)
+
+    return segments, t_audio(), t_transcribe()
+
+
+@traceable(name="ingest.vision", run_type="chain")
+def _trace_vision(
+    file_path: str,
+    media_id: str,
+) -> Tuple[List[Dict[str, Any]], int]:
+    cfg = get_stage_config().vision
+
+    with timer() as t_vision:
+        frames_dir = os.path.join(CONFIG.frames_dir, media_id)
+        os.makedirs(frames_dir, exist_ok=True)
+        frames = extract_key_frames(
+            file_path,
+            frames_dir,
+            frames_per_minute=cfg.frames_per_minute,
+        )
+        frame_analyses: List[Dict[str, Any]] = []
+        for frame in frames:
+            description = analyze_frame_with_vision_model(
+                frame["frame_path"], frame["timestamp"], cfg=cfg
+            )
+            frame_analyses.append(
+                {"timestamp": frame["timestamp"], "description": description}
+            )
+
+    return frame_analyses, t_vision()
+
+
+@traceable(name="ingest.embed", run_type="chain")
+def _trace_embed(
+    media_id: str,
+    segments: List[Dict[str, Any]],
+    frame_analyses: List[Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], int]:
+    embed_cfg = get_stage_config().embedding
+
+    with timer() as t_embed:
+        chunks = segment_transcript(segments, cfg=embed_cfg)
+
+        for chunk in chunks:
+            context_text = combine_multimodal_context(
+                [chunk], frame_analyses, chunk["start"], chunk["end"]
+            )
+
+            embedding = embed_chunk(context_text, cfg=embed_cfg)
+            frame_desc = next(
+                (
+                    f["description"]
+                    for f in frame_analyses
+                    if chunk["start"] <= f["timestamp"] <= chunk["end"]
+                ),
+                None,
+            )
+            save_segment(
+                media_id=media_id,
+                chunk_index=chunk["chunk_index"],
+                text=chunk["text"],
+                start_time=chunk["start"],
+                end_time=chunk["end"],
+                embedding=embedding,
+                frame_description=frame_desc,
+            )
+
+    return chunks, t_embed()
 
 
 @traceable(name="ingest.request", run_type="chain")
@@ -68,16 +156,12 @@ def run_ingest(
 
         job_store[job_id]["config"] = get_config_snapshot()
 
-        with st.measure("audio_extract"):
-            if is_video:
-                audio_path = os.path.join(CONFIG.upload_dir, f"{media_id}_audio.wav")
-                extract_audio_from_video(file_path, audio_path)
-            else:
-                audio_path = file_path
-
         job_store[job_id]["status"] = "transcribing"
-        with st.measure("transcribe"):
-            segments = transcribe_audio(audio_path)
+        segments, audio_extract_ms, transcribe_ms = _trace_transcribe(
+            file_path, media_id, is_video
+        )
+        st.record("audio_extract", audio_extract_ms)
+        st.record("transcribe", transcribe_ms)
 
         duration = segments[-1]["end"] if segments else 0.0
         full_transcript = " ".join(seg["text"].strip() for seg in segments)
@@ -95,52 +179,19 @@ def run_ingest(
         frame_count = 0
         if is_video:
             job_store[job_id]["status"] = "analyzing_frames"
-            with st.measure("vision_total"):
-                frames_dir = os.path.join(CONFIG.frames_dir, media_id)
-                os.makedirs(frames_dir, exist_ok=True)
-                frames = extract_key_frames(
-                    file_path,
-                    frames_dir,
-                    frames_per_minute=get_stage_config().vision.frames_per_minute,
-                )
-                frame_count = len(frames)
-                for frame in frames:
-                    description = analyze_frame_with_vision_model(
-                        frame["frame_path"], frame["timestamp"]
-                    )
-                    frame_analyses.append(
-                        {"timestamp": frame["timestamp"], "description": description}
-                    )
+            frame_analyses, vision_ms = _trace_vision(file_path, media_id)
+            st.record("vision_total", vision_ms)
+            frame_count = len(frame_analyses)
 
-        segments = correct_transcription_with_vision(segments, frame_analyses)
+        correction_cfg = get_stage_config().correction
+        if correction_cfg.enabled and frame_analyses:
+            segments = correct_transcription_with_vision(
+                segments, frame_analyses, cfg=correction_cfg
+            )
 
         job_store[job_id]["status"] = "embedding"
-        with st.measure("embed_save"):
-            chunks = segment_transcript(segments)
-
-            for chunk in chunks:
-                context_text = combine_multimodal_context(
-                    [chunk], frame_analyses, chunk["start"], chunk["end"]
-                )
-
-                embedding = embed_chunk(context_text)
-                frame_desc = next(
-                    (
-                        f["description"]
-                        for f in frame_analyses
-                        if chunk["start"] <= f["timestamp"] <= chunk["end"]
-                    ),
-                    None,
-                )
-                save_segment(
-                    media_id=media_id,
-                    chunk_index=chunk["chunk_index"],
-                    text=chunk["text"],
-                    start_time=chunk["start"],
-                    end_time=chunk["end"],
-                    embedding=embedding,
-                    frame_description=frame_desc,
-                )
+        chunks, embed_ms = _trace_embed(media_id, segments, frame_analyses)
+        st.record("embed_save", embed_ms)
 
         update_media_status(media_id, "ready", segment_count=len(chunks))
 

@@ -1,3 +1,9 @@
+---
+description: LangSmith 관측 규칙. @traceable 이름, run_type, stage grouping, helper 경계.
+paths:
+  - "app/**"
+---
+
 # LangSmith 관측 규칙
 
 > app/ 코드에 LangSmith `@traceable`을 부착·수정할 때 적용되는 규칙.
@@ -42,6 +48,14 @@ LangSmith를 쓰면서 헷갈릴 때 이 세 가지만 기억한다.
 
 **왜**: `{domain}.` 접두사는 View B(리스트)에서 `Name: starts_with "qa."` 한 줄 필터로 도메인별 분리 가능. 번호는 알파벳 정렬만으로 실행 순서가 보여서 파이프라인 지도 역할.
 
+**코드 이름과 trace 이름은 역할이 다르다**:
+
+- `@traceable(name=...)`의 `name`이 **관측 계약**이다. LangSmith 필터·대시보드·운영 메모는 이 이름을 기준으로 본다.
+- Python 함수명은 코드 내부 안정성을 우선한다. observability만의 이유로 기존 leaf util 이름을 자주 바꾸지 않는다.
+- public `run_*`는 외부에서 호출되는 pipeline entrypoint에만 남긴다. 현재 기준은 `run_qa`, `run_ingest`.
+- 새로 필요한 trace grouping helper는 private `_trace_*`로 추가한다. 예: `_trace_vision` ↔ `ingest.vision`
+- leaf util은 trace 이름과 1:1로 맞출 필요가 없다. 예: `get_answer_by_chat_model` ↔ `qa.4_chat_completion`
+
 ---
 
 ## 3. run_type 지침
@@ -81,6 +95,8 @@ LangSmith를 쓰면서 헷갈릴 때 이 세 가지만 기억한다.
 | 메타 (`evaluation_utils.py`) | ✗ — `run_qa`를 재호출하는 방향으로 장기 일원화 예정 |
 
 **1:1 래퍼는 만들지 않는다**: pipeline 함수가 단 한 개의 `@traceable` 자식만 호출하면 그 래퍼 자체가 의미 없는 `chain` 노드 하나를 추가함. 예컨대 과거 `run_generate`가 `get_answer_by_chat_model` 하나만 호출하던 구조는 제거됨. chain은 **자식 2개 이상**일 때만 의미.
+
+**예외 — major stage grouping**: ingest처럼 leaf run이 루프 때문에 길게 펼쳐져 trace 가독성이 급격히 떨어질 때는 pipeline 내부 private helper(`_trace_*`)로 stage 묶음을 둘 수 있다. 이 helper는 외부 계약이 아니므로 public `run_*`로 노출하지 않고, LangSmith 이름만 `ingest.vision`처럼 도메인 언어로 둔다.
 
 ---
 
@@ -138,14 +154,17 @@ qa.request                 [chain]
 
 ```
 ingest.request             [chain]
-  ingest.1_audio_extract   [tool]         ffmpeg
-  ingest.2_transcribe      [tool]         Whisper (chat 아님)
-  ingest.3_extract_frames  [tool]         ffmpeg
-  ingest.4_analyze_frame   [llm]   × N    GPT-4V chat.completions
-  ingest.5_correct         [llm]          vision-guided 교정 chat.completions
-  ingest.6_chunk           [tool]         순수 Python
-  ingest.7_multimodal      [tool]  × N    순수 Python
-  ingest.8_embed_chunk     [embedding] × N
+  ingest.transcribe        [chain]
+    ingest.1_audio_extract [tool]         ffmpeg
+    ingest.2_transcribe    [tool]         Whisper (chat 아님)
+  ingest.vision            [chain]
+    ingest.3_extract_frames [tool]        ffmpeg
+    ingest.4_analyze_frame [llm]   × N    GPT-4V chat.completions
+  ingest.5_correct         [llm]          enabled + frame 존재 시에만
+  ingest.embed             [chain]
+    ingest.6_chunk         [tool]         순수 Python
+    ingest.7_multimodal    [tool]  × N    순수 Python
+    ingest.8_embed_chunk   [embedding] × N
 ```
 
 ---

@@ -15,7 +15,7 @@ from datetime import datetime
 from openai import AuthenticationError as OpenAIAuthError
 
 from .config import CONFIG, get_stage_config
-from .diagnostics import get_config_snapshot, timer, StageTimer
+from .diagnostics import get_config_snapshot, StageTimer
 from .transcription_utils import extract_audio_from_video, transcribe_audio
 from .vision_utils import extract_key_frames, analyze_frame_with_vision_model
 from .media_utils import (
@@ -33,8 +33,7 @@ from .supabase_utils import (
     SupabaseOperationError,
 )
 from .evaluation_utils import run_full_evaluation
-from .chat_utils import get_answer_by_chat_model
-from .retrieval_utils import retrieve_segments
+from .qa_pipeline import run_qa
 from .correction_utils import correct_transcription_with_vision
 
 app = FastAPI(title="MediaFlow AI Agent")
@@ -299,35 +298,16 @@ async def question_answering(body: Dict[str, Any] = Body(...)):
     query = body["query"]
     media_id = body["media_id"]
 
-    latency_ms: Dict[str, int] = {}
-
-    # 1. 임베딩
-    with timer() as t_embed:
-        query_embedding = get_text_embedding(query)
-    latency_ms["embedding"] = t_embed()
-
-    # 2. 검색 + 선별 (rerank/threshold)
-    with timer() as t_retrieval:
-        all_segments, accepted_segments = retrieve_segments(
-            query, query_embedding, media_id
-        )
-    latency_ms["retrieval"] = t_retrieval()
-
-    # 4. 답변 생성
-    with timer() as t_gen:
-        answer, context_text = get_answer_by_chat_model(query, accepted_segments)
-    latency_ms["generation"] = t_gen()
-    latency_ms["total"] = (
-        latency_ms["embedding"] + latency_ms["retrieval"] + latency_ms["generation"]
-    )
+    result = run_qa(query, media_id)
 
     return {
-        "answer": answer,
-        "context_text": context_text,
-        "sources": all_segments,
+        "answer": result["answer"],
+        "context_text": result["context_text"],
+        "sources": result["all_segments"],
         "media_id": media_id,
         "config": get_config_snapshot(),
-        "latency_ms": latency_ms,
+        "latency_ms": result["latency_ms"],
+        "trace_id": result["trace_id"],
     }
 
 

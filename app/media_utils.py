@@ -2,6 +2,8 @@ import time
 import requests
 from typing import List, Dict, Any
 
+from langsmith import traceable
+
 from app.config import EmbeddingCfg, get_stage_config
 
 
@@ -45,6 +47,7 @@ def segment_transcript(
     return chunks
 
 
+@traceable(name="query_embedding", run_type="tool")
 def get_text_embedding(text: str, cfg: EmbeddingCfg | None = None) -> List[float]:
     cfg = cfg or get_stage_config().embedding
     if cfg.provider == "openai":

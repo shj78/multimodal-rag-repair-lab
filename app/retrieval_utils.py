@@ -7,6 +7,9 @@ rerank_segments:   Cohere Rerank 호출 (retrieve_segments 내부에서 사용).
 
 from typing import List, Dict, Any, Tuple
 
+from langsmith import traceable
+from langsmith.run_helpers import get_current_run_tree
+
 from .config import RetrievalCfg, get_stage_config
 from .prompts import format_rerank_document
 
@@ -60,6 +63,7 @@ def rerank_segments(
         return segments[:top_n]
 
 
+@traceable(name="candidate_ranking")
 def _rank_candidates(
     candidates: List[Dict[str, Any]],
     query: str,
@@ -69,9 +73,26 @@ def _rank_candidates(
 
     cfg.use_rerank로 분기한다. 이전엔 rerank는 retrieval_utils, threshold는
     supabase_utils에 흩어져 있었지만 "선별"이라는 동일 관심사를 한 함수로 통합.
+
+    LangSmith trace에는 mode metadata로 분기를 노출 — UI에서 rerank/threshold
+    경로를 한 run 이름(candidate_ranking) 안에서 비교할 수 있도록.
     """
+    run = get_current_run_tree()
     if cfg.use_rerank:
+        if run is not None:
+            run.add_metadata(
+                {
+                    "mode": "rerank",
+                    "rerank_model": cfg.rerank_model,
+                    "rerank_top_n": cfg.rerank_top_n,
+                }
+            )
         return rerank_segments(query, candidates, cfg=cfg)
+
+    if run is not None:
+        run.add_metadata(
+            {"mode": "threshold", "threshold": cfg.search_threshold}
+        )
     return [c for c in candidates if c.get("similarity", 0) >= cfg.search_threshold]
 
 

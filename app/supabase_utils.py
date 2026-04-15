@@ -2,6 +2,8 @@ from supabase import create_client, Client
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
+from langsmith import traceable
+
 from app.config import CONFIG, RetrievalCfg, get_stage_config
 
 
@@ -142,6 +144,7 @@ def save_segment(
     return response.data
 
 
+@traceable(name="vector_search", run_type="retriever")
 def search_similar_segments(
     query_embedding: List[float],
     media_id: str,

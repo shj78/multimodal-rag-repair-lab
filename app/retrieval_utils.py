@@ -60,6 +60,21 @@ def rerank_segments(
         return segments[:top_n]
 
 
+def _rank_candidates(
+    candidates: List[Dict[str, Any]],
+    query: str,
+    cfg: RetrievalCfg,
+) -> List[Dict[str, Any]]:
+    """검색 결과 후보를 rerank 또는 threshold로 선별한다.
+
+    cfg.use_rerank로 분기한다. 이전엔 rerank는 retrieval_utils, threshold는
+    supabase_utils에 흩어져 있었지만 "선별"이라는 동일 관심사를 한 함수로 통합.
+    """
+    if cfg.use_rerank:
+        return rerank_segments(query, candidates, cfg=cfg)
+    return [c for c in candidates if c.get("similarity", 0) >= cfg.search_threshold]
+
+
 def retrieve_segments(
     query: str,
     query_embedding: List[float],
@@ -77,18 +92,22 @@ def retrieve_segments(
     cfg = cfg or get_stage_config().retrieval
     from .supabase_utils import search_similar_segments
 
+    # rerank 모드는 후보 풀을 search_pre_rerank_k까지 넓혀서 가져온다.
+    search_cfg = cfg
     if cfg.use_rerank:
-        pre_rerank_cfg = cfg.model_copy(update={"search_top_k": cfg.search_pre_rerank_k})
-        all_segments = search_similar_segments(
-            query_embedding,
-            media_id,
-            cfg=pre_rerank_cfg,
-            skip_threshold=True,
+        search_cfg = cfg.model_copy(
+            update={"search_top_k": cfg.search_pre_rerank_k}
         )
-        accepted_segments = rerank_segments(query, all_segments, cfg=cfg)
-    else:
-        all_segments = search_similar_segments(query_embedding, media_id, cfg=cfg)
-        accepted_segments = all_segments
+
+    # threshold 적용은 _rank_candidates가 담당하므로 search 단계는 항상 skip.
+    all_segments = search_similar_segments(
+        query_embedding,
+        media_id,
+        cfg=search_cfg,
+        skip_threshold=True,
+    )
+
+    accepted_segments = _rank_candidates(all_segments, query, cfg)
 
     # accepted 마킹 (응답/결과 JSON의 sources에서 선별 여부 표시)
     # rerank은 .copy()된 객체를 반환하므로 id()가 아닌 chunk_index로 비교

@@ -132,11 +132,9 @@ def run_embed_and_save(
         (media_id, latency_ms)
     """
     from app.ingest.correction import correct_transcription_with_vision
-    from app.media_utils import (
-        combine_multimodal_context,
-        get_text_embedding,
-        segment_transcript,
-    )
+    from app.embedding import get_text_embedding
+    from app.ingest.chunking import segment_transcript
+    from app.ingest.multimodal import combine_multimodal_context
     from app.supabase_utils import save_media_file, save_segment, update_media_status
 
     # ── correction (enabled 시에만) ──
@@ -212,7 +210,7 @@ def run_qa(
         calculate_retrieval_precision,
         calculate_wer_cer,
     )
-    from app.media_utils import get_text_embedding
+    from app.embedding import get_text_embedding
     from app.retrieval_utils import retrieve_segments
     from app.supabase_utils import (
         get_media_by_id,

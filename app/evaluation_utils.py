@@ -103,7 +103,7 @@ def run_full_evaluation(
 ) -> Dict[str, Any]:
     import time
 
-    from .media_utils import get_text_embedding
+    from .embedding import get_text_embedding
     from .supabase_utils import (
         get_media_segments,
         get_media_by_id,

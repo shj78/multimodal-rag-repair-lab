@@ -26,14 +26,12 @@ from openai import AuthenticationError as OpenAIAuthError
 
 from ..config import CONFIG, get_stage_config
 from ..diagnostics import StageTimer, get_config_snapshot
+from ..embedding import get_text_embedding
+from ..ingest.chunking import segment_transcript
 from ..ingest.correction import correct_transcription_with_vision
+from ..ingest.multimodal import combine_multimodal_context
 from ..ingest.transcription import extract_audio_from_video, transcribe_audio
 from ..ingest.vision import analyze_frame_with_vision_model, extract_key_frames
-from ..media_utils import (
-    combine_multimodal_context,
-    get_text_embedding,
-    segment_transcript,
-)
 from ..supabase_utils import (
     SupabaseOperationError,
     save_media_file,

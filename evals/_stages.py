@@ -26,7 +26,7 @@ def run_transcribe(
         (segments, latency_ms)
     """
     # lazy import: faster-whisper 모델 로딩이 무거우므로 실행 시점까지 지연
-    from app.transcription_utils import extract_audio_from_video, transcribe_audio
+    from app.ingest.transcription import extract_audio_from_video, transcribe_audio
 
     print("[transcribe] 오디오 추출 중...")
     base, _ = os.path.splitext(source_path)
@@ -71,7 +71,7 @@ def run_vision(
         (frame_analyses, latency_ms)
     """
     # lazy import: cv2 + ollama 비전 호출이 무거우므로 실행 시점까지 지연
-    from app.vision_utils import analyze_frame_with_vision_model, extract_key_frames
+    from app.ingest.vision import analyze_frame_with_vision_model, extract_key_frames
 
     frames_dir = str(EVALS_DIR / "temp_frames" / dataset)
     os.makedirs(frames_dir, exist_ok=True)
@@ -131,7 +131,7 @@ def run_embed_and_save(
     Returns:
         (media_id, latency_ms)
     """
-    from app.correction_utils import correct_transcription_with_vision
+    from app.ingest.correction import correct_transcription_with_vision
     from app.media_utils import (
         combine_multimodal_context,
         get_text_embedding,

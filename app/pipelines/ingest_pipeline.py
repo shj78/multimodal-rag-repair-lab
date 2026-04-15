@@ -25,8 +25,10 @@ from langsmith import traceable
 from openai import AuthenticationError as OpenAIAuthError
 
 from ..config import CONFIG, get_stage_config
-from ..correction_utils import correct_transcription_with_vision
 from ..diagnostics import StageTimer, get_config_snapshot
+from ..ingest.correction import correct_transcription_with_vision
+from ..ingest.transcription import extract_audio_from_video, transcribe_audio
+from ..ingest.vision import analyze_frame_with_vision_model, extract_key_frames
 from ..media_utils import (
     combine_multimodal_context,
     get_text_embedding,
@@ -38,8 +40,6 @@ from ..supabase_utils import (
     save_segment,
     update_media_status,
 )
-from ..transcription_utils import extract_audio_from_video, transcribe_audio
-from ..vision_utils import analyze_frame_with_vision_model, extract_key_frames
 
 
 _VIDEO_EXTS = {"mp4", "mov", "avi", "mkv", "webm"}

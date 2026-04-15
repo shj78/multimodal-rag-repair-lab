@@ -4,8 +4,8 @@ import ffmpeg
 from faster_whisper import WhisperModel
 from langsmith import traceable
 
-from app.config import TranscriptionCfg, get_stage_config
-from app.prompts import get_transcription_prompt
+from ..config import TranscriptionCfg, get_stage_config
+from ..prompts import get_transcription_prompt
 
 
 @traceable(name="audio_extract")

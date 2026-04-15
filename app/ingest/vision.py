@@ -8,8 +8,8 @@ from typing import List, Dict
 
 from langsmith import traceable
 
-from app.config import VisionCfg, get_stage_config
-from app.prompts import get_vision_prompt
+from ..config import VisionCfg, get_stage_config
+from ..prompts import get_vision_prompt
 
 
 def _get_video_duration(video_path: str) -> float:

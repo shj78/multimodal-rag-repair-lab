@@ -10,31 +10,19 @@ from fastapi import Request
 import os
 import requests
 from uuid import uuid4
-from typing import Dict, List, Any
+from typing import Dict, Any
 from datetime import datetime
-from openai import AuthenticationError as OpenAIAuthError
 
 from .config import CONFIG, get_stage_config
-from .diagnostics import get_config_snapshot, StageTimer
-from .transcription_utils import extract_audio_from_video, transcribe_audio
-from .vision_utils import extract_key_frames, analyze_frame_with_vision_model
-from .media_utils import (
-    segment_transcript,
-    get_text_embedding,
-    combine_multimodal_context,
-)
+from .diagnostics import get_config_snapshot
 from .supabase_utils import (
-    save_media_file,
-    save_segment,
     get_all_media,
     get_media_by_id,
     get_media_segments,
-    update_media_status,
-    SupabaseOperationError,
 )
 from .evaluation_utils import run_full_evaluation
+from .pipelines.ingest_pipeline import run_ingest
 from .pipelines.qa_pipeline import run_qa
-from .correction_utils import correct_transcription_with_vision
 
 app = FastAPI(title="MediaFlow AI Agent")
 
@@ -55,139 +43,16 @@ def allowed_file(filename: str) -> bool:
     )
 
 
-def is_video_file(filename: str) -> bool:
-    return "." in filename and filename.rsplit(".", 1)[1].lower() in {
-        "mp4",
-        "mov",
-        "avi",
-        "mkv",
-        "webm",
-    }
-
-
 # ────────────────────────────────────────
 # [완성 코드] 백그라운드 처리 오케스트레이터
 # Job State: pending → transcribing → analyzing_frames → embedding → ready | failed
-# 여러분이 구현한 함수들이 이 함수 내부에서 호출됩니다.
+# 실제 오케스트레이션은 pipelines.ingest_pipeline.run_ingest에 위임.
+# 이 함수는 FastAPI BackgroundTasks 진입점으로서 job_store를 주입하는 wrapper.
 # ────────────────────────────────────────
 async def process_media_background(
     job_id: str, media_id: str, file_path: str, filename: str
 ):
-    try:
-        is_video = is_video_file(filename)
-        st = StageTimer()
-
-        # 시작 시 config 스냅샷 저장 (처리 중 config 변경 대비)
-        job_store[job_id]["config"] = get_config_snapshot()
-
-        # ── 1단계: 오디오 추출 (비디오인 경우) ──
-        with st.measure("audio_extract"):
-            if is_video:
-                audio_path = os.path.join(CONFIG.upload_dir, f"{media_id}_audio.wav")
-                extract_audio_from_video(file_path, audio_path)
-            else:
-                audio_path = file_path
-
-        # ── 2단계: 전사 ──
-        job_store[job_id]["status"] = "transcribing"
-        with st.measure("transcribe"):
-            segments = transcribe_audio(audio_path)
-
-        duration = segments[-1]["end"] if segments else 0.0
-        full_transcript = " ".join(seg["text"].strip() for seg in segments)
-        save_media_file(
-            media_id=media_id,
-            filename=filename,
-            file_type="video" if is_video else "audio",
-            duration=duration,
-            metadata={"provider": get_stage_config().transcription.provider},
-            full_transcript=full_transcript,
-            file_path=file_path,
-        )
-
-        # ── 3단계: 키 프레임 분석 (비디오인 경우) ──
-        frame_analyses: List[Dict[str, Any]] = []
-        frame_count = 0
-        if is_video:
-            job_store[job_id]["status"] = "analyzing_frames"
-            with st.measure("vision_total"):
-                frames_dir = os.path.join(CONFIG.frames_dir, media_id)
-                os.makedirs(frames_dir, exist_ok=True)
-                frames = extract_key_frames(
-                    file_path, frames_dir, frames_per_minute=get_stage_config().vision.frames_per_minute
-                )
-                frame_count = len(frames)
-                for frame in frames:
-                    description = analyze_frame_with_vision_model(
-                        frame["frame_path"], frame["timestamp"]
-                    )
-                    frame_analyses.append(
-                        {"timestamp": frame["timestamp"], "description": description}
-                    )
-
-        # ── 3.5단계: Vision-guided 전사 교정 ──
-        segments = correct_transcription_with_vision(segments, frame_analyses)
-
-        # ── 4단계: 세그먼트 청킹 + 임베딩 + 저장 ──
-        job_store[job_id]["status"] = "embedding"
-        with st.measure("embed_save"):
-            chunks = segment_transcript(segments)
-
-            for chunk in chunks:
-                context_text = combine_multimodal_context(
-                    [chunk], frame_analyses, chunk["start"], chunk["end"]
-                )
-
-                embedding = get_text_embedding(context_text)
-                frame_desc = next(
-                    (
-                        f["description"]
-                        for f in frame_analyses
-                        if chunk["start"] <= f["timestamp"] <= chunk["end"]
-                    ),
-                    None,
-                )
-                save_segment(
-                    media_id=media_id,
-                    chunk_index=chunk["chunk_index"],
-                    text=chunk["text"],
-                    start_time=chunk["start"],
-                    end_time=chunk["end"],
-                    embedding=embedding,
-                    frame_description=frame_desc,
-                )
-
-        update_media_status(media_id, "ready", segment_count=len(chunks))
-
-        job_store[job_id]["status"] = "ready"
-        job_store[job_id]["media_id"] = media_id
-        job_store[job_id]["latency_ms"] = st.result
-        job_store[job_id]["stats"] = {
-            "duration_seconds": duration,
-            "segment_count": len(chunks),
-            "frame_count": frame_count,
-        }
-
-    except OpenAIAuthError:
-        job_store[job_id]["status"] = "failed"
-        job_store[job_id]["error"] = (
-            "OpenAI API 키가 유효하지 않습니다. OPENAI_API_KEY를 확인하세요."
-        )
-        try:
-            update_media_status(media_id, "failed")
-        except Exception:
-            pass
-    except SupabaseOperationError as e:
-        job_store[job_id]["status"] = "failed"
-        job_store[job_id]["error"] = str(e)
-    except Exception as e:
-        job_store[job_id]["status"] = "failed"
-        job_store[job_id]["error"] = str(e)
-        try:
-            update_media_status(media_id, "failed")
-        except Exception:
-            pass
-        raise
+    run_ingest(job_id, media_id, file_path, filename, job_store)
 
 
 # ────────────────────────────────────────

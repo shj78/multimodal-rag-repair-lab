@@ -7,6 +7,7 @@ from langsmith import traceable
 from app.config import EmbeddingCfg, get_stage_config
 
 
+@traceable(name="chunk")
 def segment_transcript(
     segments: List[Dict],
     cfg: EmbeddingCfg | None = None,
@@ -77,6 +78,7 @@ def get_text_embedding(text: str, cfg: EmbeddingCfg | None = None) -> List[float
         return response.json()["embedding"]
 
 
+@traceable(name="multimodal_context")
 def combine_multimodal_context(
     transcript_chunks: List[Dict],
     frame_analyses: List[Dict],

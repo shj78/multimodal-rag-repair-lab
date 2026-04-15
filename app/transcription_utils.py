@@ -2,10 +2,13 @@ from typing import List, Dict
 import ffmpeg
 
 from faster_whisper import WhisperModel
+from langsmith import traceable
+
 from app.config import TranscriptionCfg, get_stage_config
 from app.prompts import get_transcription_prompt
 
 
+@traceable(name="audio_extract")
 def extract_audio_from_video(video_path: str, output_path: str) -> str:
     (
         ffmpeg.input(video_path)
@@ -15,6 +18,7 @@ def extract_audio_from_video(video_path: str, output_path: str) -> str:
     pass
 
 
+@traceable(name="transcribe")
 def transcribe_audio(
     audio_path: str, cfg: TranscriptionCfg | None = None
 ) -> List[Dict]:

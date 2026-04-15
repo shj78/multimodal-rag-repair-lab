@@ -6,6 +6,8 @@ import base64
 import requests
 from typing import List, Dict
 
+from langsmith import traceable
+
 from app.config import VisionCfg, get_stage_config
 from app.prompts import get_vision_prompt
 
@@ -29,6 +31,7 @@ def _get_video_duration(video_path: str) -> float:
     return float(info["format"]["duration"])
 
 
+@traceable(name="extract_key_frames")
 def extract_key_frames(
     video_path: str, output_dir: str, frames_per_minute: int = 1
 ) -> List[Dict]:
@@ -70,6 +73,7 @@ def extract_key_frames(
     return result
 
 
+@traceable(name="analyze_frame")
 def analyze_frame_with_vision_model(
     frame_path: str, timestamp: float, cfg: VisionCfg | None = None
 ) -> str:

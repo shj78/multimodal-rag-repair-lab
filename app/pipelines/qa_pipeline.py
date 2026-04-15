@@ -5,14 +5,14 @@ main.py /qa, evals/_stages.py:run_qa, evaluation_utils.run_full_evaluation에
 중복돼 있던 "embedding → retrieve → generate" 흐름을 하나로 모은 shared boundary.
 이번 PR에선 main.py만 이 함수를 호출하도록 교체하고, evals 쪽은 별도 PR에서 교체.
 
-LangSmith trace 구조:
-    qa.request (root, run_type="chain")
-      ├─ query_embedding   (get_text_embedding @traceable)
-      ├─ run_retrieve      (chain)
-      │   ├─ vector_search       (search_similar_segments @traceable)
-      │   └─ candidate_ranking   (_rank_candidates @traceable + mode metadata)
-      └─ run_generate      (chain)
-          └─ chat_completion     (get_answer_by_chat_model @traceable)
+LangSmith trace 구조 (이름 규칙: 루트/묶음은 도메인 prefix만, 말단은 번호):
+    qa.request (root, chain)
+      ├─ qa.1_embed_query      (embedding)
+      ├─ qa.retrieve           (chain)
+      │   ├─ qa.2_vector_search    (retriever)
+      │   └─ qa.3_rank_candidates  (chain, mode metadata)
+      │       └─ qa.3.1_rerank     (retriever, rerank 모드일 때만)
+      └─ qa.4_chat_completion  (llm)   # 1:1 래퍼(qa.generate) 생략
 
 LANGCHAIN_TRACING_V2가 false이거나 키가 없으면 @traceable은 투명 pass-through로
 동작하므로 로컬·CI 환경에서도 키 없이 그대로 돌아간다.
@@ -25,7 +25,7 @@ from langsmith.run_helpers import get_current_run_tree
 
 from ..config import PipelineConfig, get_stage_config
 from ..diagnostics import timer
-from ..embedding import get_text_embedding
+from ..embedding import embed_query
 from ..qa.chat import get_answer_by_chat_model
 from ..qa.retrieval import retrieve_segments
 
@@ -45,7 +45,7 @@ def run_qa(
     latency_ms: Dict[str, int] = {}
 
     with timer() as t_embed:
-        query_embedding = get_text_embedding(query, cfg=cfg.embedding)
+        query_embedding = embed_query(query, cfg=cfg.embedding)
     latency_ms["embedding"] = t_embed()
 
     with timer() as t_retrieve:
@@ -55,7 +55,9 @@ def run_qa(
     latency_ms["retrieval"] = t_retrieve()
 
     with timer() as t_gen:
-        answer, context_text = run_generate(query, accepted, cfg)
+        answer, context_text = get_answer_by_chat_model(
+            query, accepted, cfg=cfg.qa
+        )
     latency_ms["generation"] = t_gen()
 
     latency_ms["total"] = (
@@ -75,7 +77,7 @@ def run_qa(
     }
 
 
-@traceable(run_type="chain")
+@traceable(name="qa.retrieve", run_type="chain")
 def run_retrieve(
     query: str,
     query_embedding,
@@ -84,13 +86,3 @@ def run_retrieve(
 ):
     """검색 + 선별 단계를 trace의 child run으로 노출한다."""
     return retrieve_segments(query, query_embedding, media_id, cfg=cfg.retrieval)
-
-
-@traceable(run_type="chain")
-def run_generate(
-    query: str,
-    accepted_segments,
-    cfg: PipelineConfig,
-):
-    """답변 생성 단계를 trace의 child run으로 노출한다."""
-    return get_answer_by_chat_model(query, accepted_segments, cfg=cfg.qa)

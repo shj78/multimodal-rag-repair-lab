@@ -14,6 +14,7 @@ from ..config import RetrievalCfg, get_stage_config
 from ..prompts import format_rerank_document
 
 
+@traceable(name="qa.3.1_rerank", run_type="retriever")
 def rerank_segments(
     query: str,
     segments: List[Dict[str, Any]],
@@ -22,12 +23,18 @@ def rerank_segments(
     """
     Cohere Rerank로 segments를 재정렬하여 상위 top_n개를 반환한다.
     COHERE_API_KEY가 없거나 API 호출 실패 시 원본을 그대로 반환 (fallback).
+
+    fallback 경로 진입 시 run.metadata에 `skipped` 키로 사유를 남겨
+    LangSmith trace만 보고도 "실제 Cohere 호출이 있었는지"를 판별할 수 있다.
     """
     cfg = cfg or get_stage_config().retrieval
     top_n = cfg.rerank_top_n
+    run = get_current_run_tree()
 
     if not cfg.cohere_api_key:
         print("[rerank] COHERE_API_KEY 없음 — rerank 생략")
+        if run is not None:
+            run.add_metadata({"skipped": "no_api_key"})
         return segments[:top_n]
 
     if not segments:
@@ -60,10 +67,12 @@ def rerank_segments(
 
     except Exception as e:
         print(f"[rerank] 실패, fallback 사용 — {e}")
+        if run is not None:
+            run.add_metadata({"skipped": "api_error", "error": str(e)})
         return segments[:top_n]
 
 
-@traceable(name="candidate_ranking")
+@traceable(name="qa.3_rank_candidates", run_type="chain")
 def _rank_candidates(
     candidates: List[Dict[str, Any]],
     query: str,

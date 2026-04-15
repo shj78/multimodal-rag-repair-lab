@@ -103,7 +103,7 @@ def run_full_evaluation(
 ) -> Dict[str, Any]:
     import time
 
-    from .embedding import get_text_embedding
+    from .embedding import embed_query
     from .supabase_utils import (
         get_media_segments,
         get_media_by_id,
@@ -118,7 +118,7 @@ def run_full_evaluation(
         question_start = time.perf_counter()
 
         # 1. 임베딩 + 검색 + 선별 (rerank/threshold)
-        query_embedding = get_text_embedding(question)
+        query_embedding = embed_query(question)
         all_segments, accepted_segments = retrieve_segments(
             question, query_embedding, media_id
         )
@@ -215,8 +215,8 @@ def calculate_visual_text_alignment(
 
     구현 아이디어:
     1. LLM-as-Judge: "아래 영상 설명과 음성 전사가 같은 장면을 묘사합니까? 0.0~1.0으로 점수를 주세요."
-    2. 임베딩 코사인 유사도: get_text_embedding(frame_description)과
-       get_text_embedding(transcript_text)의 코사인 유사도 계산
+    2. 임베딩 코사인 유사도: embed_query(frame_description)과
+       embed_query(transcript_text)의 코사인 유사도 계산
 
     주의: PROVIDER=openai인 경우 GPT-4o Vision 추가 호출 비용이 발생합니다.
 

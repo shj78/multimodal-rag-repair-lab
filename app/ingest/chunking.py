@@ -9,7 +9,7 @@ from langsmith import traceable
 from ..config import EmbeddingCfg, get_stage_config
 
 
-@traceable(name="chunk")
+@traceable(name="ingest.6_chunk", run_type="tool")
 def segment_transcript(
     segments: List[Dict],
     cfg: EmbeddingCfg | None = None,

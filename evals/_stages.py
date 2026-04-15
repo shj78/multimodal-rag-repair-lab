@@ -132,7 +132,7 @@ def run_embed_and_save(
         (media_id, latency_ms)
     """
     from app.ingest.correction import correct_transcription_with_vision
-    from app.embedding import get_text_embedding
+    from app.embedding import embed_chunk
     from app.ingest.chunking import segment_transcript
     from app.ingest.multimodal import combine_multimodal_context
     from app.supabase_utils import save_media_file, save_segment, update_media_status
@@ -166,7 +166,7 @@ def run_embed_and_save(
             context_text = combine_multimodal_context(
                 [chunk], frame_analyses, chunk["start"], chunk["end"]
             )
-            embedding = get_text_embedding(context_text)
+            embedding = embed_chunk(context_text)
             matched_descs = [
                 f["description"]
                 for f in frame_analyses
@@ -210,7 +210,7 @@ def run_qa(
         calculate_retrieval_precision,
         calculate_wer_cer,
     )
-    from app.embedding import get_text_embedding
+    from app.embedding import embed_query
     from app.qa.retrieval import retrieve_segments
     from app.supabase_utils import (
         get_media_by_id,
@@ -225,7 +225,7 @@ def run_qa(
             query = q["query"]
             with timer() as t_question:
                 # 검색 + 선별 (rerank/threshold)
-                query_embedding = get_text_embedding(query)
+                query_embedding = embed_query(query)
                 all_candidates, accepted = retrieve_segments(
                     query, query_embedding, media_id
                 )

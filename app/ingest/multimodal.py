@@ -7,7 +7,7 @@ from typing import Dict, List
 from langsmith import traceable
 
 
-@traceable(name="multimodal_context")
+@traceable(name="ingest.7_multimodal", run_type="tool")
 def combine_multimodal_context(
     transcript_chunks: List[Dict],
     frame_analyses: List[Dict],

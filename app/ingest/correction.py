@@ -24,7 +24,7 @@ from ..prompts import get_correction_prompt
 logger = logging.getLogger(__name__)
 
 
-@traceable(name="correction")
+@traceable(name="ingest.5_correct", run_type="llm")
 def correct_transcription_with_vision(
     segments: list[dict],
     frame_analyses: list[dict],

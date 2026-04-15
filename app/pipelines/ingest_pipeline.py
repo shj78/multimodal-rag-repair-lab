@@ -5,17 +5,17 @@ main.py:process_media_background에 붙어 있던 "audio 추출 → 전사 → �
 교정 → 청킹/임베딩/저장" 흐름을 하나로 모은 pipeline. qa_pipeline.run_qa와 짝을
 이루는 두 번째 pipeline으로 pipelines/ 폴더가 성립한다.
 
-LangSmith trace 구조:
-    ingest.request (root, run_type="chain")
-      ├─ audio_extract     (extract_audio_from_video @traceable)
-      ├─ transcribe        (transcribe_audio @traceable)
-      ├─ vision_total
-      │   ├─ extract_key_frames      @traceable
-      │   └─ analyze_frame_with_vision_model  @traceable (프레임 수만큼)
-      ├─ correction        (correct_transcription_with_vision @traceable)
-      └─ embed_save
-          ├─ segment_transcript         @traceable
-          └─ per-chunk: combine_multimodal_context / get_text_embedding / save_segment
+LangSmith trace 구조 (이름 규칙: 루트는 도메인 prefix만, 말단은 번호):
+    ingest.request (root, chain)
+      ├─ ingest.1_audio_extract    (tool)
+      ├─ ingest.2_transcribe       (tool)
+      ├─ ingest.3_extract_frames   (tool)
+      ├─ ingest.4_analyze_frame    (tool) × 프레임 수
+      ├─ ingest.5_correct          (tool)
+      ├─ ingest.6_chunk            (tool)
+      └─ per-chunk 루프:
+          ├─ ingest.7_multimodal    (tool)
+          └─ ingest.8_embed_chunk   (embedding)
 """
 
 import os
@@ -26,7 +26,7 @@ from openai import AuthenticationError as OpenAIAuthError
 
 from ..config import CONFIG, get_stage_config
 from ..diagnostics import StageTimer, get_config_snapshot
-from ..embedding import get_text_embedding
+from ..embedding import embed_chunk
 from ..ingest.chunking import segment_transcript
 from ..ingest.correction import correct_transcription_with_vision
 from ..ingest.multimodal import combine_multimodal_context
@@ -123,7 +123,7 @@ def run_ingest(
                     [chunk], frame_analyses, chunk["start"], chunk["end"]
                 )
 
-                embedding = get_text_embedding(context_text)
+                embedding = embed_chunk(context_text)
                 frame_desc = next(
                     (
                         f["description"]

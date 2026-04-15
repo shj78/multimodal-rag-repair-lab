@@ -31,7 +31,7 @@ def _get_video_duration(video_path: str) -> float:
     return float(info["format"]["duration"])
 
 
-@traceable(name="extract_key_frames")
+@traceable(name="ingest.3_extract_frames", run_type="tool")
 def extract_key_frames(
     video_path: str, output_dir: str, frames_per_minute: int = 1
 ) -> List[Dict]:
@@ -73,7 +73,7 @@ def extract_key_frames(
     return result
 
 
-@traceable(name="analyze_frame")
+@traceable(name="ingest.4_analyze_frame", run_type="llm")
 def analyze_frame_with_vision_model(
     frame_path: str, timestamp: float, cfg: VisionCfg | None = None
 ) -> str:

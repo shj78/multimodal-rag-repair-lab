@@ -2,8 +2,8 @@ import time
 import requests
 from langsmith import traceable
 
-from .config import QACfg, get_stage_config
-from .prompts import get_qa_system_prompt
+from ..config import QACfg, get_stage_config
+from ..prompts import get_qa_system_prompt
 
 
 @traceable(name="chat_completion", run_type="llm")

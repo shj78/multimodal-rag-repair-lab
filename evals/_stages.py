@@ -203,7 +203,7 @@ def run_qa(
         (qa_results, metrics, latency_ms)
     """
     # lazy import: LLM 호출 모듈을 실행 시점까지 지연
-    from app.chat_utils import get_answer_by_chat_model
+    from app.qa.chat import get_answer_by_chat_model
     from app.evaluation_utils import (
         calculate_answer_relevance,
         calculate_groundedness,
@@ -211,7 +211,7 @@ def run_qa(
         calculate_wer_cer,
     )
     from app.embedding import get_text_embedding
-    from app.retrieval_utils import retrieve_segments
+    from app.qa.retrieval import retrieve_segments
     from app.supabase_utils import (
         get_media_by_id,
         get_media_segments,

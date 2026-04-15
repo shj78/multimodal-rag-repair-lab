@@ -23,11 +23,11 @@ from typing import Any, Dict, Optional
 from langsmith import traceable
 from langsmith.run_helpers import get_current_run_tree
 
-from ..chat_utils import get_answer_by_chat_model
 from ..config import PipelineConfig, get_stage_config
 from ..diagnostics import timer
 from ..embedding import get_text_embedding
-from ..retrieval_utils import retrieve_segments
+from ..qa.chat import get_answer_by_chat_model
+from ..qa.retrieval import retrieve_segments
 
 
 @traceable(name="qa.request", run_type="chain")

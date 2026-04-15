@@ -1,5 +1,5 @@
 """
-retrieval_utils.py — 검색 결과 선별 (Rerank / Threshold)
+qa/retrieval.py — 검색 결과 선별 (Rerank / Threshold)
 
 retrieve_segments: 검색 → 선별 → accepted 마킹까지의 공통 흐름.
 rerank_segments:   Cohere Rerank 호출 (retrieve_segments 내부에서 사용).
@@ -10,8 +10,8 @@ from typing import List, Dict, Any, Tuple
 from langsmith import traceable
 from langsmith.run_helpers import get_current_run_tree
 
-from .config import RetrievalCfg, get_stage_config
-from .prompts import format_rerank_document
+from ..config import RetrievalCfg, get_stage_config
+from ..prompts import format_rerank_document
 
 
 def rerank_segments(
@@ -111,7 +111,7 @@ def retrieve_segments(
         - accepted_segments: 최종 선별된 세그먼트
     """
     cfg = cfg or get_stage_config().retrieval
-    from .supabase_utils import search_similar_segments
+    from ..supabase_utils import search_similar_segments
 
     # rerank 모드는 후보 풀을 search_pre_rerank_k까지 넓혀서 가져온다.
     search_cfg = cfg

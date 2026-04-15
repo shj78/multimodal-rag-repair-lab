@@ -3,8 +3,8 @@ import requests
 import re
 from jiwer import wer, cer
 
-from app.chat_utils import get_answer_by_chat_model
-from app.retrieval_utils import retrieve_segments
+from app.qa.chat import get_answer_by_chat_model
+from app.qa.retrieval import retrieve_segments
 
 from app.config import JudgeCfg, get_stage_config
 from app.prompts import (

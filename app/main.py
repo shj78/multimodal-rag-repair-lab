@@ -33,7 +33,7 @@ from .supabase_utils import (
     SupabaseOperationError,
 )
 from .evaluation_utils import run_full_evaluation
-from .qa_pipeline import run_qa
+from .pipelines.qa_pipeline import run_qa
 from .correction_utils import correct_transcription_with_vision
 
 app = FastAPI(title="MediaFlow AI Agent")

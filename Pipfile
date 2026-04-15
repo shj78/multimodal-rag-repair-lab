@@ -18,6 +18,7 @@ python-multipart = "*"
 jinja2 = "*"
 aiofiles = "*"
 ffmpeg-python = "*"
+langsmith = "*"
 
 [dev-packages]
 

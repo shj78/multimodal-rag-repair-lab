@@ -62,6 +62,9 @@ class StageTimer:
         finally:
             self._stages[stage_name] = round((time.perf_counter() - t0) * 1000)
 
+    def record(self, stage_name: str, duration_ms: int) -> None:
+        self._stages[stage_name] = duration_ms
+
     @property
     def result(self) -> Dict[str, int]:
         return {

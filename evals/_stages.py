@@ -26,7 +26,7 @@ def run_transcribe(
         (segments, latency_ms)
     """
     # lazy import: faster-whisper 모델 로딩이 무거우므로 실행 시점까지 지연
-    from app.transcription_utils import extract_audio_from_video, transcribe_audio
+    from app.ingest.transcription import extract_audio_from_video, transcribe_audio
 
     print("[transcribe] 오디오 추출 중...")
     base, _ = os.path.splitext(source_path)
@@ -71,7 +71,7 @@ def run_vision(
         (frame_analyses, latency_ms)
     """
     # lazy import: cv2 + ollama 비전 호출이 무거우므로 실행 시점까지 지연
-    from app.vision_utils import analyze_frame_with_vision_model, extract_key_frames
+    from app.ingest.vision import analyze_frame_with_vision_model, extract_key_frames
 
     frames_dir = str(EVALS_DIR / "temp_frames" / dataset)
     os.makedirs(frames_dir, exist_ok=True)
@@ -131,12 +131,10 @@ def run_embed_and_save(
     Returns:
         (media_id, latency_ms)
     """
-    from app.correction_utils import correct_transcription_with_vision
-    from app.media_utils import (
-        combine_multimodal_context,
-        get_text_embedding,
-        segment_transcript,
-    )
+    from app.ingest.correction import correct_transcription_with_vision
+    from app.embedding import embed_chunk
+    from app.ingest.chunking import segment_transcript
+    from app.ingest.multimodal import combine_multimodal_context
     from app.supabase_utils import save_media_file, save_segment, update_media_status
 
     # ── correction (enabled 시에만) ──
@@ -168,7 +166,7 @@ def run_embed_and_save(
             context_text = combine_multimodal_context(
                 [chunk], frame_analyses, chunk["start"], chunk["end"]
             )
-            embedding = get_text_embedding(context_text)
+            embedding = embed_chunk(context_text)
             matched_descs = [
                 f["description"]
                 for f in frame_analyses
@@ -205,15 +203,15 @@ def run_qa(
         (qa_results, metrics, latency_ms)
     """
     # lazy import: LLM 호출 모듈을 실행 시점까지 지연
-    from app.chat_utils import get_answer_by_chat_model
+    from app.qa.chat import get_answer_by_chat_model
     from app.evaluation_utils import (
         calculate_answer_relevance,
         calculate_groundedness,
         calculate_retrieval_precision,
         calculate_wer_cer,
     )
-    from app.media_utils import get_text_embedding
-    from app.retrieval_utils import retrieve_segments
+    from app.embedding import embed_query
+    from app.qa.retrieval import retrieve_segments
     from app.supabase_utils import (
         get_media_by_id,
         get_media_segments,
@@ -227,7 +225,7 @@ def run_qa(
             query = q["query"]
             with timer() as t_question:
                 # 검색 + 선별 (rerank/threshold)
-                query_embedding = get_text_embedding(query)
+                query_embedding = embed_query(query)
                 all_candidates, accepted = retrieve_segments(
                     query, query_embedding, media_id
                 )

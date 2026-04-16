@@ -1,13 +1,15 @@
 """
 segment_transcript(), combine_multimodal_context() 회귀 테스트.
 
-Phase 2에서 시그니처를 변경할 때 동작이 보존되는지 검증한다.
+media_utils.py 분할(app/ingest/chunking.py + app/ingest/multimodal.py) 후에도
+두 함수의 동작이 보존되는지 검증한다.
 """
 
 import pytest
 
 from app.config import EmbeddingCfg
-from app.media_utils import combine_multimodal_context, segment_transcript
+from app.ingest.chunking import segment_transcript
+from app.ingest.multimodal import combine_multimodal_context
 
 
 def _make_embedding_cfg(window_seconds: float, overlap_seconds: float) -> EmbeddingCfg:

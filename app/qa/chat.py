@@ -1,9 +1,12 @@
 import time
 import requests
-from .config import QACfg, get_stage_config
-from .prompts import get_qa_system_prompt
+from langsmith import traceable
+
+from ..config import QACfg, get_stage_config
+from ..prompts import get_qa_system_prompt
 
 
+@traceable(name="qa.4_chat_completion", run_type="llm")
 def get_answer_by_chat_model(query, similar_segments, cfg: QACfg | None = None):
     cfg = cfg or get_stage_config().qa
     context_text = "\n".join(

@@ -1,5 +1,5 @@
 """
-correction_utils.py — Vision-guided 전사 교정
+ingest/correction.py — Vision-guided 전사 교정
 
 Vision 분석(frame_analyses) 결과를 근거로 Whisper 전사 세그먼트의
 코드 용어·함수명·변수명을 교정한다.
@@ -15,14 +15,16 @@ import re
 import time
 
 import requests
+from langsmith import traceable
 from openai import OpenAI, RateLimitError
 
-from .config import CorrectionCfg, get_stage_config
-from .prompts import get_correction_prompt
+from ..config import CorrectionCfg, get_stage_config
+from ..prompts import get_correction_prompt
 
 logger = logging.getLogger(__name__)
 
 
+@traceable(name="ingest.5_correct", run_type="llm")
 def correct_transcription_with_vision(
     segments: list[dict],
     frame_analyses: list[dict],

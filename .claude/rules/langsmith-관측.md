@@ -8,9 +8,6 @@ paths:
 
 > app/ 코드에 LangSmith `@traceable`을 부착·수정할 때 적용되는 규칙.
 > 루트 CLAUDE.md의 "변경에는 맥락이 따라다닌다", "기록 = 실행" 원칙을 관측 도메인에서 구현한 것.
-> 이 문서는 delta-03-lang / delta-03-lang-v2 두 브랜치에 걸친 LangSmith 도입 논의(페어이전 메모 01~06)의
-> 운영 규칙 승격본이다. 과거 논의 기록은 개인 메모로 두고, 현업 기준은 여기서 유지한다.
-
 ---
 
 ## 1. 개념 (최소 3개)
@@ -40,21 +37,21 @@ LangSmith를 쓰면서 헷갈릴 때 이 세 가지만 기억한다.
 
 **세부 규칙**:
 
-- `domain` ∈ {`qa`, `ingest`} — 앞으로 도메인 추가 시 소문자 단수형
+- `domain`은 app 도메인 이름 (현재 `qa`, `ingest`). 도메인 정의는 `app-구조.md` §2 참조
 - 번호는 **말단(leaf) run에만** 붙인다. 루트·묶음엔 번호 없음
 - 번호는 **도메인 내 실행 순서의 현 스냅샷**. 파이프라인 재구성 시 재매김 허용
 - 말단 중 다른 말단을 자식으로 가지면 `3.1`처럼 계층 번호 (현재는 `qa.3.1_rerank` 한 사례)
 - 이름은 **함수명이 아니라 도메인 언어** — 함수명 리팩토링 시 UI 대시보드·필터가 깨지지 않게
 
-**왜**: `{domain}.` 접두사는 View B(리스트)에서 `Name: starts_with "qa."` 한 줄 필터로 도메인별 분리 가능. 번호는 알파벳 정렬만으로 실행 순서가 보여서 파이프라인 지도 역할.
+**왜**: `{domain}.` 접두사는 LangSmith Runs 리스트에서 `Name: starts_with "qa."` 한 줄 필터로 도메인별 분리 가능. 번호는 알파벳 정렬만으로 실행 순서가 보여서 파이프라인 지도 역할.
 
 **코드 이름과 trace 이름은 역할이 다르다**:
 
 - `@traceable(name=...)`의 `name`이 **관측 계약**이다. LangSmith 필터·대시보드·운영 메모는 이 이름을 기준으로 본다.
 - Python 함수명은 코드 내부 안정성을 우선한다. observability만의 이유로 기존 leaf util 이름을 자주 바꾸지 않는다.
-- public `run_*`는 외부에서 호출되는 pipeline entrypoint에만 남긴다. 현재 기준은 `run_qa`, `run_ingest`.
-- 새로 필요한 trace grouping helper는 private `_trace_*`로 추가한다. 예: `_trace_vision` ↔ `ingest.vision`
 - leaf util은 trace 이름과 1:1로 맞출 필요가 없다. 예: `get_answer_by_chat_model` ↔ `qa.4_chat_completion`
+
+**pipeline 내부 private helper의 trace 이름**: grouping 전용 helper(`_trace_*`, `app-구조.md` §3 참조)는 LangSmith 이름을 도메인 언어로 둔다. 예: `_trace_vision` ↔ `ingest.vision`.
 
 ---
 
@@ -84,19 +81,21 @@ LangSmith를 쓰면서 헷갈릴 때 이 세 가지만 기억한다.
 
 ## 4. 부착 원칙
 
+층 구분은 `app-구조.md` §1~2를 따른다. 각 층의 관측 부착 여부:
+
 | 층 | 부착 여부 |
 | --- | --- |
-| route (`main.py`) | ✗ — route는 HTTP 입출력만, trace 시작점 |
+| route (`main.py`) | ✗ — HTTP 입출력만, trace 시작점 |
 | **pipeline** (`pipelines/*.py`) | **항상** — 루트 + 주요 묶음 |
-| **도메인 util** (`ingest/*.py`, `qa/*.py`) | **관찰 가치 있을 때** (API 호출, 지연 큰 step, 프롬프트 관련) |
+| **도메인 util** (`ingest/*.py`, `qa/*.py`) | **관찰 가치 있을 때** (API 호출, 지연 큰 단계, 프롬프트 관련) |
 | **공유 도메인** (`embedding.py`) | **부착** — 호출 맥락별로 분리 (§5 참조) |
 | 인프라 (`config.py`, `prompts.py`, `diagnostics.py`, `snapshot.py`) | ✗ |
 | 인프라 예외 (`supabase_utils.py:search_similar_segments`) | ✓ — 관측 가치 큰 외부 호출 |
 | 메타 (`evaluation_utils.py`) | ✗ — `run_qa`를 재호출하는 방향으로 장기 일원화 예정 |
 
-**1:1 래퍼는 만들지 않는다**: pipeline 함수가 단 한 개의 `@traceable` 자식만 호출하면 그 래퍼 자체가 의미 없는 `chain` 노드 하나를 추가함. 예컨대 과거 `run_generate`가 `get_answer_by_chat_model` 하나만 호출하던 구조는 제거됨. chain은 **자식 2개 이상**일 때만 의미.
+**1:1 래퍼는 trace tree에도 잡음**: 구조 규칙상 1:1 래퍼는 금지되지만(`app-구조.md` §6), 관측 측면에서도 자식이 1개인 `chain` 노드는 trace tree에 의미 없는 층을 추가한다. chain은 **자식 2개 이상**일 때만 관측 가치가 있다.
 
-**예외 — major stage grouping**: ingest처럼 leaf run이 루프 때문에 길게 펼쳐져 trace 가독성이 급격히 떨어질 때는 pipeline 내부 private helper(`_trace_*`)로 stage 묶음을 둘 수 있다. 이 helper는 외부 계약이 아니므로 public `run_*`로 노출하지 않고, LangSmith 이름만 `ingest.vision`처럼 도메인 언어로 둔다.
+**예외 — major grouping helper**: ingest처럼 leaf run이 루프 때문에 길게 펼쳐져 trace 가독성이 떨어질 때는 pipeline 내부 `_trace_*` helper로 묶음을 둔다 (구조 규칙 `app-구조.md` §3 참조). LangSmith 이름은 `ingest.vision`처럼 도메인 언어로 둔다.
 
 ---
 
@@ -169,43 +168,17 @@ ingest.request             [chain]
 
 ---
 
-## 7. 리스트 뷰 사용 원칙
-
-LangSmith UI의 **Runs 리스트**는 기본적으로 모든 run을 평평하게 보여줘서 혼란을 준다. **요청 단위로 필터**해서 저장한 뷰를 기본으로 쓴다.
-
-**권장 필터**:
-
-```
-Is Root = true              # 또는
-Name contains ".request"    # 동일 효과
-```
-
-필터 적용 후 "Save view"로 **요청 단위** 같은 이름으로 저장 → 기본 뷰 지정.
-
-**뷰별 역할 분담**:
-
-| 뷰 | 목적 | 답하는 질문 |
-| --- | --- | --- |
-| Runs 리스트 (필터 적용) | 요청 개요 | 오늘 QA 몇 건? 가장 느린 요청은? |
-| Trace 상세 (루트 클릭) | 개별 요청 내부 진단 | 이 답이 왜 이상해? 어디서 느렸나? |
-| Monitoring | 시계열 지표 | 지난 1시간 지연이 왜 늘었나? rerank 평균은? |
-
-리스트에 step까지 섞어 보이는 건 뷰의 목적을 흐린다. 세부는 클릭 또는 Monitoring 탭으로 이동.
-
----
-
-## 8. 냄새 신호
+## 7. 냄새 신호
 
 - `run_generate` 같은 1:1 래퍼가 발견된다 → §4에 따라 제거 검토
 - 같은 함수가 두 trace에서 이름이 겹친다 → §5 얇은 래퍼로 분리
 - Cohere/OpenAI 외부 호출이 `@traceable` 없이 숨어 있다 → §4 관찰 가치 검토
 - `llm`이 아닌 run에 `chat.completions`가 들어가 있다 → run_type 오분류, §3 재확인
-- LangSmith Runs 리스트에 step과 루트가 섞여 보인다 → §7 필터 미적용
-- 루트 run 없이 말단만 찍힌 고아 run이 보인다 → 호출자에 부모 `@traceable` 없음 (§9 참조)
+- 루트 run 없이 말단만 찍힌 고아 run이 보인다 → 호출자에 부모 `@traceable` 없음 (§8 참조)
 
 ---
 
-## 9. 미해결 이슈
+## 8. 미해결 이슈
 
 ### evals 호출 경로 고아 run
 
@@ -214,7 +187,7 @@ Name contains ".request"    # 동일 효과
 - 증상: LangSmith에 `ingest.6_chunk`, `ingest.7_multimodal`, `qa.2_vector_search` 등이 루트 레벨에서 대량으로 생성
 - 원인: evals가 파이프라인 오케스트레이션을 자체 재현 (`_stages.py`의 embed/qa 단계가 util 순차 호출)
 - 임시 대응: Runs 리스트 필터로 `Name contains ".request"` 걸어 고아 run 숨김
-- 근본 해결: 별도 PR에서 `evals/_stages.py`와 `evaluation_utils.run_full_evaluation`이 `run_qa` / `run_ingest`를 호출하도록 교체 (페어이전 문서 05 §2-5, 06 §8 계획)
+- 근본 해결: 별도 PR에서 `evals/_stages.py`와 `evaluation_utils.run_full_evaluation`이 `run_qa` / `run_ingest`를 호출하도록 교체
 
 ### Ollama 로컬 모드의 `llm` 집계
 
@@ -222,8 +195,8 @@ Name contains ".request"    # 동일 효과
 
 ---
 
-## 10. 변경 원칙
+## 9. 변경 원칙
 
-- 이 문서는 **운영 규칙**이지 생각의 기록이 아니다. 논의·대안·기각 근거는 `dev-summarize/.../LangSmith/01~06` 개인 메모에 둔다.
+- 이 문서는 **운영 규칙**이지 생각의 기록이 아니다. 논의·대안·기각 근거는 여기 담지 않는다.
 - 규칙을 추가·변경할 때는 **왜 추가하는지 한 줄**과 **적용 시 체크할 것**을 함께 적는다.
 - 현업 관행과 어긋나는 예외를 둘 때는 "왜 우리는 다르게 가는지" 근거를 명시한다.

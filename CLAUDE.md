@@ -29,6 +29,7 @@ CLAUDE.md는 advisory다 (~80% 준수율). **반드시 지켜야 할 것은 hook
 | `.claude/rules/config-규약.md`    | `app/**`, `evals/_stages.py` | Stage Config, 호출 규약, Override        |
 | `.claude/rules/실험-프로토콜.md`  | `evals/**`, `experiments/**` | 실험 전후 프로토콜                       |
 | `.claude/rules/code-style.md`     | `app/**`, `evals/**`         | Fowler 리팩토링 기준 코드 품질           |
+| `.claude/rules/app-구조.md`       | `app/**`                     | route/pipeline/util 3층, 폴더·명명 규칙  |
 | `.claude/rules/langsmith-관측.md` | `app/**`                     | `@traceable` 이름·run_type·부착 규칙     |
 
 ### Sensor

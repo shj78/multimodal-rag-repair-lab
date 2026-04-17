@@ -7,6 +7,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi import Request
+import asyncio
 import os
 import requests
 from uuid import uuid4
@@ -52,7 +53,7 @@ def allowed_file(filename: str) -> bool:
 async def process_media_background(
     job_id: str, media_id: str, file_path: str, filename: str
 ):
-    run_ingest(job_id, media_id, file_path, filename, job_store)
+    await asyncio.to_thread(run_ingest, job_id, media_id, file_path, filename, job_store)
 
 
 # ────────────────────────────────────────
@@ -67,7 +68,7 @@ async def root_page(request: Request):
 
 @app.get("/media/{media_id}/file")
 async def serve_media_file(media_id: str):
-    media = get_media_by_id(media_id)
+    media = await asyncio.to_thread(get_media_by_id, media_id)
     if not media or not media.get("file_path"):
         raise HTTPException(status_code=404, detail="미디어 파일을 찾을 수 없습니다.")
     file_path = media["file_path"]
@@ -92,7 +93,9 @@ async def health_check():
     has_local = any(p == "local" for p in providers.values())
     if has_local:
         try:
-            resp = requests.get(f"{CONFIG.ollama_base}/api/tags", timeout=3)
+            resp = await asyncio.to_thread(
+                requests.get, f"{CONFIG.ollama_base}/api/tags", timeout=3
+            )
             components["ollama"] = "ok" if resp.status_code == 200 else "error"
         except Exception:
             components["ollama"] = "unreachable"
@@ -149,8 +152,7 @@ async def upload_media(background_tasks: BackgroundTasks, file: UploadFile = Fil
 # 미디어 목록 조회
 @app.get("/media/")
 async def list_media():
-    result = get_all_media()
-
+    result = await asyncio.to_thread(get_all_media)
     return {"media": result}
 
 
@@ -163,7 +165,7 @@ async def question_answering(body: Dict[str, Any] = Body(...)):
     query = body["query"]
     media_id = body["media_id"]
 
-    result = run_qa(query, media_id)
+    result = await asyncio.to_thread(run_qa, query, media_id)
 
     return {
         "answer": result["answer"],
@@ -179,13 +181,14 @@ async def question_answering(body: Dict[str, Any] = Body(...)):
 # 세그먼트 목록 조회 (UI 전사 패널에서 사용)
 @app.get("/media/{media_id}/segments")
 async def get_segments(media_id: str):
-    return {"segments": get_media_segments(media_id), "media_id": media_id}
+    segments = await asyncio.to_thread(get_media_segments, media_id)
+    return {"segments": segments, "media_id": media_id}
 
 
 # 요약
 @app.post("/media/{media_id}/summary")
 async def summarize_media(media_id: str):
-    segments = get_media_segments(media_id)
+    segments = await asyncio.to_thread(get_media_segments, media_id)
 
     full_text = "\n".join(seg["text"] for seg in segments)
 
@@ -205,13 +208,15 @@ async def summarize_media(media_id: str):
         from openai import OpenAI
 
         client = OpenAI(api_key=qa_cfg.openai_api_key)
-        resp = client.chat.completions.create(
+        resp = await asyncio.to_thread(
+            client.chat.completions.create,
             model=qa_cfg.openai_chat_model,
             messages=messages,
         )
         summary = resp.choices[0].message.content
     else:
-        resp = requests.post(
+        resp = await asyncio.to_thread(
+            requests.post,
             f"{qa_cfg.ollama_base}/api/chat",
             json={
                 "model": qa_cfg.ollama_chat_model,
@@ -234,7 +239,9 @@ async def evaluate_media(
         raise HTTPException(
             status_code=400, detail="평가할 질문이 최소 1개 필요합니다."
         )
-    result = run_full_evaluation(media_id, questions, reference_transcript or None)
+    result = await asyncio.to_thread(
+        run_full_evaluation, media_id, questions, reference_transcript or None
+    )
 
     return {
         "metrics": result["metrics"],

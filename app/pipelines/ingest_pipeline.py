@@ -21,6 +21,7 @@ LangSmith trace 구조 (이름 규칙: 루트/묶음은 도메인 prefix만, 말
 """
 
 import os
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Tuple
 
 from langsmith import traceable
@@ -43,6 +44,7 @@ from ..supabase_utils import (
 
 
 _VIDEO_EXTS = {"mp4", "mov", "avi", "mkv", "webm"}
+_VISION_CONCURRENCY = 4  # OpenAI Vision API rate limit 대비 동시 실행 수
 
 
 def _is_video_file(filename: str) -> bool:
@@ -70,6 +72,22 @@ def _trace_transcribe(
     return segments, t_audio(), t_transcribe()
 
 
+def _analyze_frames_parallel(
+    frames: List[Dict[str, Any]], cfg
+) -> List[Dict[str, Any]]:
+    if not frames:
+        return []
+
+    def _analyze_one(frame):
+        description = analyze_frame_with_vision_model(
+            frame["frame_path"], frame["timestamp"], cfg=cfg
+        )
+        return {"timestamp": frame["timestamp"], "description": description}
+
+    with ThreadPoolExecutor(max_workers=_VISION_CONCURRENCY) as executor:
+        return list(executor.map(_analyze_one, frames))
+
+
 @traceable(name="ingest.vision", run_type="chain")
 def _trace_vision(
     file_path: str,
@@ -85,14 +103,7 @@ def _trace_vision(
             frames_dir,
             frames_per_minute=cfg.frames_per_minute,
         )
-        frame_analyses: List[Dict[str, Any]] = []
-        for frame in frames:
-            description = analyze_frame_with_vision_model(
-                frame["frame_path"], frame["timestamp"], cfg=cfg
-            )
-            frame_analyses.append(
-                {"timestamp": frame["timestamp"], "description": description}
-            )
+        frame_analyses = _analyze_frames_parallel(frames, cfg)
 
     return frame_analyses, t_vision()
 

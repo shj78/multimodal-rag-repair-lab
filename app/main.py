@@ -53,7 +53,9 @@ def allowed_file(filename: str) -> bool:
 async def process_media_background(
     job_id: str, media_id: str, file_path: str, filename: str
 ):
-    await asyncio.to_thread(run_ingest, job_id, media_id, file_path, filename, job_store)
+    await asyncio.to_thread(
+        run_ingest, job_id, media_id, file_path, filename, job_store
+    )
 
 
 # ────────────────────────────────────────
@@ -131,9 +133,10 @@ async def upload_media(background_tasks: BackgroundTasks, file: UploadFile = Fil
     ext = file.filename.rsplit(".", 1)[1].lower()
     file_path = os.path.join(CONFIG.upload_dir, f"{media_id}.{ext}")
 
+    _UPLOAD_CHUNK = 1024 * 1024  # 1MB
     with open(file_path, "wb") as f:
-        content = await file.read()
-        f.write(content)
+        while chunk := await file.read(_UPLOAD_CHUNK):
+            f.write(chunk)
 
     job_store[job_id] = {
         "status": "pending",

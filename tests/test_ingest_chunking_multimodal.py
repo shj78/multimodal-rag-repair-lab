@@ -1,5 +1,5 @@
 """
-segment_transcript(), combine_multimodal_context() 회귀 테스트.
+chunk_segments(), combine_multimodal_context() 회귀 테스트.
 
 media_utils.py 분할(app/ingest/chunking.py + app/ingest/multimodal.py) 후에도
 두 함수의 동작이 보존되는지 검증한다.
@@ -8,7 +8,7 @@ media_utils.py 분할(app/ingest/chunking.py + app/ingest/multimodal.py) 후에�
 import pytest
 
 from app.config import EmbeddingCfg
-from app.ingest.chunking import segment_transcript
+from app.ingest.chunking import chunk_segments
 from app.ingest.multimodal import combine_multimodal_context
 
 
@@ -38,12 +38,12 @@ class TestSegmentTranscript:
         ]
 
     def test_empty_input(self):
-        assert segment_transcript([]) == []
+        assert chunk_segments([]) == []
 
     def test_single_segment_within_window(self):
         segments = self._make_segments([(0.0, 5.0, "hello")])
         cfg = _make_embedding_cfg(window_seconds=20.0, overlap_seconds=5.0)
-        chunks = segment_transcript(segments, cfg=cfg)
+        chunks = chunk_segments(segments, cfg=cfg)
         assert len(chunks) == 1
         assert chunks[0]["text"] == "hello"
         assert chunks[0]["chunk_index"] == 0
@@ -56,7 +56,7 @@ class TestSegmentTranscript:
             (30.0, 40.0, "D"),
         ])
         cfg = _make_embedding_cfg(window_seconds=20.0, overlap_seconds=5.0)
-        chunks = segment_transcript(segments, cfg=cfg)
+        chunks = chunk_segments(segments, cfg=cfg)
         indices = [c["chunk_index"] for c in chunks]
         assert indices == list(range(len(chunks)))
 
@@ -68,7 +68,7 @@ class TestSegmentTranscript:
             (12.0, 20.0, "second"),
         ])
         cfg = _make_embedding_cfg(window_seconds=10.0, overlap_seconds=3.0)
-        chunks = segment_transcript(segments, cfg=cfg)
+        chunks = chunk_segments(segments, cfg=cfg)
         texts = [c["text"] for c in chunks]
         boundary_count = sum(1 for t in texts if "boundary" in t)
         assert boundary_count >= 2, "경계 세그먼트가 오버랩으로 2개 이상 청크에 포함되어야 함"
@@ -82,11 +82,11 @@ class TestSegmentTranscript:
             (15.0, 20.0, "D"),
         ])
         # window=10, overlap=0 → step=10 → 2개 청크
-        chunks_no_overlap = segment_transcript(
+        chunks_no_overlap = chunk_segments(
             segments, cfg=_make_embedding_cfg(window_seconds=10.0, overlap_seconds=0.0)
         )
         # window=10, overlap=5 → step=5 → 더 많은 청크
-        chunks_with_overlap = segment_transcript(
+        chunks_with_overlap = chunk_segments(
             segments, cfg=_make_embedding_cfg(window_seconds=10.0, overlap_seconds=5.0)
         )
         assert len(chunks_with_overlap) > len(chunks_no_overlap)
@@ -97,7 +97,7 @@ class TestSegmentTranscript:
             (10.0, 25.0, "B"),
         ])
         cfg = _make_embedding_cfg(window_seconds=20.0, overlap_seconds=5.0)
-        chunks = segment_transcript(segments, cfg=cfg)
+        chunks = chunk_segments(segments, cfg=cfg)
         for chunk in chunks:
             assert chunk["start"] >= 0.0
             assert chunk["end"] <= 25.0

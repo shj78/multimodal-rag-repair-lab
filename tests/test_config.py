@@ -121,4 +121,4 @@ class TestDefaultParams:
 
         cfg = Config()
         assert cfg.search_threshold == 0.3
-        assert cfg.search_top_k == 3
+        assert cfg.top_k == 3

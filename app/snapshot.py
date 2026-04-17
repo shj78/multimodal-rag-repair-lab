@@ -89,11 +89,11 @@ def get_config_snapshot() -> Dict[str, Any]:
         "judge_provider": cfg.judge.provider,
         # ── Retrieval / Rerank ──
         "search_threshold": retrieval.search_threshold,
-        "search_top_k": retrieval.search_top_k,
+        "top_k": retrieval.top_k,
         "use_rerank": retrieval.use_rerank,
         "rerank_model": retrieval.rerank_model,
-        "rerank_top_n": retrieval.rerank_top_n,
-        "search_pre_rerank_k": retrieval.search_pre_rerank_k,
+        "rerank_top_k": retrieval.rerank_top_k,
+        "rerank_pool_size": retrieval.rerank_pool_size,
     }
 
 

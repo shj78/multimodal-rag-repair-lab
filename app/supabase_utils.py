@@ -152,7 +152,7 @@ def search_similar_segments(
     skip_threshold: bool = False,
 ) -> List[Dict[str, Any]]:
     cfg = cfg or get_stage_config().retrieval
-    limit = cfg.search_top_k
+    limit = cfg.top_k
     threshold = cfg.search_threshold
     try:
         response = (

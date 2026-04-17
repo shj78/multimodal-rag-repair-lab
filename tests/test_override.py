@@ -23,26 +23,26 @@ class TestOverrideConfig:
         assert CONFIG.chunk_window_seconds == original
 
     def test_value_restored_on_exception(self):
-        original = CONFIG.search_top_k
+        original = CONFIG.top_k
         try:
-            with override_config(retrieval={"search_top_k": 50}):
-                assert CONFIG.search_top_k == 50
+            with override_config(retrieval={"top_k": 50}):
+                assert CONFIG.top_k == 50
                 raise RuntimeError("의도적 예외")
         except RuntimeError:
             pass
-        assert CONFIG.search_top_k == original
+        assert CONFIG.top_k == original
 
     def test_multiple_stages_overridden(self):
         orig_fpm = CONFIG.frames_per_minute
-        orig_topk = CONFIG.search_top_k
+        orig_topk = CONFIG.top_k
         with override_config(
             vision={"frames_per_minute": 10},
-            retrieval={"search_top_k": 20},
+            retrieval={"top_k": 20},
         ):
             assert CONFIG.frames_per_minute == 10
-            assert CONFIG.search_top_k == 20
+            assert CONFIG.top_k == 20
         assert CONFIG.frames_per_minute == orig_fpm
-        assert CONFIG.search_top_k == orig_topk
+        assert CONFIG.top_k == orig_topk
 
     def test_nested_override_restores_correctly(self):
         orig = CONFIG.frames_per_minute

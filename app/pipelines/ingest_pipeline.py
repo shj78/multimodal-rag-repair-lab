@@ -30,7 +30,7 @@ from openai import AuthenticationError as OpenAIAuthError
 from ..config import CONFIG, get_stage_config
 from ..diagnostics import StageTimer, get_config_snapshot, timer
 from ..embedding import embed_chunk
-from ..ingest.chunking import segment_transcript
+from ..ingest.chunking import chunk_segments
 from ..ingest.correction import correct_transcription_with_vision
 from ..ingest.multimodal import combine_multimodal_context
 from ..ingest.transcription import extract_audio_from_video, transcribe_audio
@@ -117,7 +117,7 @@ def _trace_embed(
     embed_cfg = get_stage_config().embedding
 
     with timer() as t_embed:
-        chunks = segment_transcript(segments, cfg=embed_cfg)
+        chunks = chunk_segments(segments, cfg=embed_cfg)
 
         for chunk in chunks:
             context_text = combine_multimodal_context(

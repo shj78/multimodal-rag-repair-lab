@@ -61,7 +61,7 @@ class Config:
 
     # ── Retrieval ──
     search_threshold: float = 0.3
-    search_top_k: int = 3
+    top_k: int = 3
 
     # ── Correction ──
     use_correction: bool = os.getenv("USE_CORRECTION", "false").lower() == "true"
@@ -71,8 +71,8 @@ class Config:
     use_rerank: bool = os.getenv("USE_RERANK", "false").lower() == "true"
     cohere_api_key: str = os.getenv("COHERE_API_KEY", "")
     rerank_model: str = os.getenv("RERANK_MODEL", "rerank-multilingual-v3.0")
-    rerank_top_n: int = 3
-    search_pre_rerank_k: int = 15
+    rerank_top_k: int = 3
+    rerank_pool_size: int = 15
 
     # ── Supabase ──
     supabase_url: str = os.getenv("SUPABASE_URL", "")
@@ -139,12 +139,12 @@ class CorrectionCfg(BaseModel):
 
 
 class RetrievalCfg(BaseModel):
-    search_top_k: int
+    top_k: int
     search_threshold: float
     use_rerank: bool
     rerank_model: str
-    rerank_top_n: int
-    search_pre_rerank_k: int
+    rerank_top_k: int
+    rerank_pool_size: int
     cohere_api_key: str = ""
 
 
@@ -205,12 +205,12 @@ _STAGE_FIELD_MAP: dict[str, dict[str, str]] = {
         "ollama_chat_model": "ollama_chat_model",
     },
     "retrieval": {
-        "search_top_k": "search_top_k",
+        "top_k": "top_k",
         "search_threshold": "search_threshold",
         "use_rerank": "use_rerank",
         "rerank_model": "rerank_model",
-        "rerank_top_n": "rerank_top_n",
-        "search_pre_rerank_k": "search_pre_rerank_k",
+        "rerank_top_k": "rerank_top_k",
+        "rerank_pool_size": "rerank_pool_size",
     },
     "qa": {
         "provider": "chat_provider",
@@ -300,12 +300,12 @@ def get_stage_config() -> PipelineConfig:
             openai_api_key=CONFIG.openai_api_key,
         ),
         retrieval=RetrievalCfg(
-            search_top_k=CONFIG.search_top_k,
+            top_k=CONFIG.top_k,
             search_threshold=CONFIG.search_threshold,
             use_rerank=CONFIG.use_rerank,
             rerank_model=CONFIG.rerank_model,
-            rerank_top_n=CONFIG.rerank_top_n,
-            search_pre_rerank_k=CONFIG.search_pre_rerank_k,
+            rerank_top_k=CONFIG.rerank_top_k,
+            rerank_pool_size=CONFIG.rerank_pool_size,
             cohere_api_key=CONFIG.cohere_api_key,
         ),
         qa=QACfg(
@@ -374,12 +374,12 @@ print(
   Chunk Window (sec)   : {_cfg.embedding.chunk_window_seconds}
   Chunk Overlap (sec)  : {_cfg.embedding.chunk_overlap_seconds}
   Search Threshold     : {_cfg.retrieval.search_threshold}
-  Search Top-K         : {_cfg.retrieval.search_top_k}
+  Search Top-K         : {_cfg.retrieval.top_k}
   ─ Rerank ─
   Use Rerank           : {_cfg.retrieval.use_rerank}
   Rerank Model         : {_cfg.retrieval.rerank_model if _cfg.retrieval.use_rerank else "(disabled)"}
-  Rerank Top-N         : {_cfg.retrieval.rerank_top_n if _cfg.retrieval.use_rerank else "(disabled)"}
-  Pre-Rerank K         : {_cfg.retrieval.search_pre_rerank_k if _cfg.retrieval.use_rerank else "(disabled)"}
+  Rerank Top-K         : {_cfg.retrieval.rerank_top_k if _cfg.retrieval.use_rerank else "(disabled)"}
+  Rerank Pool Size     : {_cfg.retrieval.rerank_pool_size if _cfg.retrieval.use_rerank else "(disabled)"}
 ────────────────────────────────────────
 """
 )

@@ -133,7 +133,7 @@ def run_embed_and_save(
     """
     from app.ingest.correction import correct_transcription_with_vision
     from app.embedding import embed_chunk
-    from app.ingest.chunking import segment_transcript
+    from app.ingest.chunking import chunk_segments
     from app.ingest.multimodal import combine_multimodal_context
     from app.supabase_utils import save_media_file, save_segment, update_media_status
 
@@ -149,7 +149,7 @@ def run_embed_and_save(
 
     print(f"[embed] 청킹 + 임베딩 중... (media_id={media_id})")
     with timer() as t_embed:
-        chunks = segment_transcript(segments)
+        chunks = chunk_segments(segments)
 
         total_duration = max((s["end"] for s in segments), default=0)
         full_transcript = " ".join(seg.get("text", "").strip() for seg in segments)

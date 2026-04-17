@@ -10,7 +10,7 @@ from ..config import EmbeddingCfg, get_stage_config
 
 
 @traceable(name="ingest.6_chunk", run_type="tool")
-def segment_transcript(
+def chunk_segments(
     segments: List[Dict],
     cfg: EmbeddingCfg | None = None,
 ) -> List[Dict]:

@@ -28,14 +28,14 @@ def rerank_segments(
     LangSmith trace만 보고도 "실제 Cohere 호출이 있었는지"를 판별할 수 있다.
     """
     cfg = cfg or get_stage_config().retrieval
-    top_n = cfg.rerank_top_n
+    top_k = cfg.rerank_top_k
     run = get_current_run_tree()
 
     if not cfg.cohere_api_key:
         print("[rerank] COHERE_API_KEY 없음 — rerank 생략")
         if run is not None:
             run.add_metadata({"skipped": "no_api_key"})
-        return segments[:top_n]
+        return segments[:top_k]
 
     if not segments:
         return segments
@@ -51,7 +51,7 @@ def rerank_segments(
             model=cfg.rerank_model,
             query=query,
             documents=documents,
-            top_n=top_n,
+            top_n=top_k,
         )
 
         reranked = []
@@ -69,7 +69,7 @@ def rerank_segments(
         print(f"[rerank] 실패, fallback 사용 — {e}")
         if run is not None:
             run.add_metadata({"skipped": "api_error", "error": str(e)})
-        return segments[:top_n]
+        return segments[:top_k]
 
 
 @traceable(name="qa.3_rank_candidates", run_type="chain")
@@ -93,7 +93,7 @@ def _rank_candidates(
                 {
                     "mode": "rerank",
                     "rerank_model": cfg.rerank_model,
-                    "rerank_top_n": cfg.rerank_top_n,
+                    "rerank_top_k": cfg.rerank_top_k,
                 }
             )
         return rerank_segments(query, candidates, cfg=cfg)
@@ -122,11 +122,11 @@ def retrieve_segments(
     cfg = cfg or get_stage_config().retrieval
     from ..supabase_utils import search_similar_segments
 
-    # rerank 모드는 후보 풀을 search_pre_rerank_k까지 넓혀서 가져온다.
+    # rerank 모드는 후보 풀을 rerank_pool_size까지 넓혀서 가져온다.
     search_cfg = cfg
     if cfg.use_rerank:
         search_cfg = cfg.model_copy(
-            update={"search_top_k": cfg.search_pre_rerank_k}
+            update={"top_k": cfg.rerank_pool_size}
         )
 
     # threshold 적용은 _rank_candidates가 담당하므로 search 단계는 항상 skip.

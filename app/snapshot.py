@@ -19,6 +19,7 @@ from .prompts import (
     CURRENT_EVAL_RETRIEVAL_PRECISION_VERSION,
     CURRENT_EVAL_VISUAL_TEXT_ALIGNMENT_VERSION,
     CURRENT_HYDE_VERSION,
+    CURRENT_LLM_RERANK_VERSION,
     CURRENT_QA_SYSTEM_VERSION,
     CURRENT_RERANK_DOC_VERSION,
     CURRENT_VISION_VERSION,
@@ -27,6 +28,7 @@ from .prompts import (
     EVAL_RETRIEVAL_PRECISION_PROMPTS,
     EVAL_VISUAL_TEXT_ALIGNMENT_PROMPTS,
     HYDE_PROMPTS,
+    LLM_RERANK_PROMPTS,
     QA_SYSTEM_PROMPTS,
     RERANK_DOC_TEMPLATES,
     TRANSCRIPTION_PROMPTS,
@@ -93,9 +95,11 @@ def get_config_snapshot() -> Dict[str, Any]:
         "search_threshold": retrieval.search_threshold,
         "top_k": retrieval.top_k,
         "use_rerank": retrieval.use_rerank,
+        "rerank_provider": retrieval.rerank_provider,
         "rerank_model": retrieval.rerank_model,
         "rerank_top_k": retrieval.rerank_top_k,
         "rerank_pool_size": retrieval.rerank_pool_size,
+        "llm_rerank_prompt_version": retrieval.llm_rerank_prompt_version,
         # ── Hybrid ──
         "use_hybrid": retrieval.use_hybrid,
         "hybrid_rrf_k": retrieval.hybrid_rrf_k,
@@ -137,6 +141,10 @@ def get_prompt_snapshot() -> Dict[str, Any]:
         "rerank_doc": {
             "version": CURRENT_RERANK_DOC_VERSION,
             "text": RERANK_DOC_TEMPLATES[CURRENT_RERANK_DOC_VERSION],
+        },
+        "llm_rerank": {
+            "version": CURRENT_LLM_RERANK_VERSION,
+            "text": LLM_RERANK_PROMPTS[CURRENT_LLM_RERANK_VERSION],
         },
         "eval_answer_relevance": {
             "version": CURRENT_EVAL_ANSWER_RELEVANCE_VERSION,

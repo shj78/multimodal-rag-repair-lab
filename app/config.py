@@ -69,10 +69,12 @@ class Config:
 
     # ── Rerank ──
     use_rerank: bool = os.getenv("USE_RERANK", "false").lower() == "true"
+    rerank_provider: str = os.getenv("RERANK_PROVIDER", "llm").lower()  # "llm" | "cohere"
     cohere_api_key: str = os.getenv("COHERE_API_KEY", "")
     rerank_model: str = os.getenv("RERANK_MODEL", "rerank-multilingual-v3.0")
     rerank_top_k: int = 3
     rerank_pool_size: int = 15
+    llm_rerank_prompt_version: str = os.getenv("LLM_RERANK_PROMPT_VERSION", "v1")
 
     # ── Hybrid Retrieval (BM25 + vector) ──
     use_hybrid: bool = os.getenv("USE_HYBRID", "true").lower() == "true"
@@ -151,10 +153,12 @@ class RetrievalCfg(BaseModel):
     top_k: int
     search_threshold: float
     use_rerank: bool
+    rerank_provider: str = "llm"
     rerank_model: str
     rerank_top_k: int
     rerank_pool_size: int
     cohere_api_key: str = ""
+    llm_rerank_prompt_version: str = "v1"
     use_hybrid: bool = True
     hybrid_rrf_k: int = 60
     hybrid_bm25_top_k: int = 30
@@ -222,9 +226,11 @@ _STAGE_FIELD_MAP: dict[str, dict[str, str]] = {
         "top_k": "top_k",
         "search_threshold": "search_threshold",
         "use_rerank": "use_rerank",
+        "rerank_provider": "rerank_provider",
         "rerank_model": "rerank_model",
         "rerank_top_k": "rerank_top_k",
         "rerank_pool_size": "rerank_pool_size",
+        "llm_rerank_prompt_version": "llm_rerank_prompt_version",
         "use_hybrid": "use_hybrid",
         "hybrid_rrf_k": "hybrid_rrf_k",
         "hybrid_bm25_top_k": "hybrid_bm25_top_k",
@@ -322,10 +328,12 @@ def get_stage_config() -> PipelineConfig:
             top_k=CONFIG.top_k,
             search_threshold=CONFIG.search_threshold,
             use_rerank=CONFIG.use_rerank,
+            rerank_provider=CONFIG.rerank_provider,
             rerank_model=CONFIG.rerank_model,
             rerank_top_k=CONFIG.rerank_top_k,
             rerank_pool_size=CONFIG.rerank_pool_size,
             cohere_api_key=CONFIG.cohere_api_key,
+            llm_rerank_prompt_version=CONFIG.llm_rerank_prompt_version,
             use_hybrid=CONFIG.use_hybrid,
             hybrid_rrf_k=CONFIG.hybrid_rrf_k,
             hybrid_bm25_top_k=CONFIG.hybrid_bm25_top_k,
@@ -401,9 +409,11 @@ print(
   Search Top-K         : {_cfg.retrieval.top_k}
   ─ Rerank ─
   Use Rerank           : {_cfg.retrieval.use_rerank}
-  Rerank Model         : {_cfg.retrieval.rerank_model if _cfg.retrieval.use_rerank else "(disabled)"}
+  Rerank Provider      : {_cfg.retrieval.rerank_provider if _cfg.retrieval.use_rerank else "(disabled)"}
+  Rerank Model         : {_cfg.retrieval.rerank_model if _cfg.retrieval.use_rerank and _cfg.retrieval.rerank_provider == "cohere" else "(n/a)"}
   Rerank Top-K         : {_cfg.retrieval.rerank_top_k if _cfg.retrieval.use_rerank else "(disabled)"}
   Rerank Pool Size     : {_cfg.retrieval.rerank_pool_size if _cfg.retrieval.use_rerank else "(disabled)"}
+  LLM Rerank Prompt    : {_cfg.retrieval.llm_rerank_prompt_version if _cfg.retrieval.use_rerank and _cfg.retrieval.rerank_provider == "llm" else "(n/a)"}
   ─ Hybrid ─
   Use Hybrid           : {_cfg.retrieval.use_hybrid}
   RRF k                : {_cfg.retrieval.hybrid_rrf_k if _cfg.retrieval.use_hybrid else "(disabled)"}

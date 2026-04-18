@@ -200,6 +200,31 @@ HYDE_PROMPTS = {
 CURRENT_HYDE_VERSION = "v1"
 
 
+# ── LLM Rerank 프롬프트 ──
+# listwise 방식. 쿼리 + 후보 청크들을 한 번에 LLM에 넣고 상위 N개 chunk_index를 받는다.
+# Cohere cross-encoder가 해결 못하는 "영상 내부 alias" (예: 쿼리의 고유명사가 청크엔
+# 지시어로만 등장) 문제를 LLM의 문맥 추론으로 돌파.
+
+LLM_RERANK_PROMPTS = {
+    "v1": (
+        "당신은 영상 QA용 검색 결과 rerank 전문가입니다.\n"
+        "아래 질문에 대해 각 후보 청크의 관련성을 평가하고, "
+        "관련성이 가장 높은 상위 {top_k}개의 chunk_index를 순서대로 반환하세요.\n\n"
+        "판단 기준:\n"
+        "- 청크가 질문에 답할 정보(또는 일부)를 담고 있으면 관련 있음\n"
+        "- 주인공의 이름과 청크의 지시어(그 고양이/녀석/이 아이 등)가 같은 대상을 가리킨다고 "
+        "영상 맥락상 추론되면 동일 개체로 간주\n"
+        "- 질문의 시점·장소·상황을 설명하는 도입부/배경 청크도 관련 있음\n\n"
+        "질문: {query}\n\n"
+        "후보 청크:\n{candidates}\n\n"
+        "응답은 반드시 아래 JSON 형식으로만 출력하세요.\n"
+        '{{"ranked_indices": [chunk_index 숫자 배열, 길이 {top_k}]}}'
+    ),
+}
+
+CURRENT_LLM_RERANK_VERSION = "v1"
+
+
 # ── 평가 프롬프트 (LLM-as-Judge) ──
 
 EVAL_ANSWER_RELEVANCE_PROMPTS = {
@@ -406,6 +431,18 @@ def get_hyde_prompt(query: str, version: str = None) -> str:
     v = version or CURRENT_HYDE_VERSION
     template = HYDE_PROMPTS[v]
     return template.format(query=query)
+
+
+def get_llm_rerank_prompt(
+    query: str, candidates: str, top_k: int, version: str = None
+) -> str:
+    """버전에 해당하는 LLM Rerank 프롬프트를 완성해 반환한다.
+
+    candidates는 "[idx] (start=Xs) 텍스트" 형태의 여러 줄 문자열.
+    """
+    v = version or CURRENT_LLM_RERANK_VERSION
+    template = LLM_RERANK_PROMPTS[v]
+    return template.format(query=query, candidates=candidates, top_k=top_k)
 
 
 def get_eval_answer_relevance_prompt(version: str = None) -> str:

@@ -14,7 +14,7 @@ from ..config import RetrievalCfg, get_stage_config
 from ..prompts import format_rerank_document
 
 
-@traceable(name="qa.3.1_rerank", run_type="retriever")
+@traceable(name="qa.3.1_cohere_rerank", run_type="retriever")
 def rerank_segments(
     query: str,
     segments: List[Dict[str, Any]],
@@ -92,10 +92,14 @@ def _rank_candidates(
             run.add_metadata(
                 {
                     "mode": "rerank",
-                    "rerank_model": cfg.rerank_model,
+                    "rerank_provider": cfg.rerank_provider,
                     "rerank_top_k": cfg.rerank_top_k,
                 }
             )
+        if cfg.rerank_provider == "llm":
+            from .llm_rerank import llm_rerank_segments
+
+            return llm_rerank_segments(query, candidates, cfg=cfg)
         return rerank_segments(query, candidates, cfg=cfg)
 
     if run is not None:

@@ -125,13 +125,20 @@ def _trace_embed(
             )
 
             embedding = embed_chunk(context_text, cfg=embed_cfg)
-            frame_desc = next(
-                (
-                    f["description"]
-                    for f in frame_analyses
-                    if chunk["start"] <= f["timestamp"] <= chunk["end"]
-                ),
-                None,
+            matched_frames = [
+                f for f in frame_analyses
+                if chunk["start"] <= f["timestamp"] <= chunk["end"]
+            ]
+            def _fmt_ts(sec: float) -> str:
+                m, s = divmod(int(sec), 60)
+                return f"{m}분 {s}초" if m else f"{s}초"
+
+            frame_desc = (
+                "\n".join(
+                    f"[{_fmt_ts(f['timestamp'])}] {f['description']}"
+                    for f in matched_frames
+                )
+                if matched_frames else None
             )
             save_segment(
                 media_id=media_id,

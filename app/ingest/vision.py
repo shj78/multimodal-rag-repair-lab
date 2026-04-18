@@ -33,7 +33,7 @@ def _get_video_duration(video_path: str) -> float:
 
 @traceable(name="ingest.3_extract_frames", run_type="tool")
 def extract_key_frames(
-    video_path: str, output_dir: str, frames_per_minute: int = 1
+    video_path: str, output_dir: str, frames_per_minute: int = 1, min_frames: int = 3
 ) -> List[Dict]:
     result = []
 
@@ -41,6 +41,13 @@ def extract_key_frames(
     print(f"[vision] Video duration: {duration:.1f}s")
 
     interval_sec = 60 / frames_per_minute
+    # 영상이 짧아 min_frames보다 적게 추출될 경우 간격을 줄여 최소 프레임 수를 보장한다.
+    if duration > 0 and duration / interval_sec < min_frames:
+        interval_sec = duration / min_frames
+        print(
+            f"[vision] interval adjusted to {interval_sec:.1f}s "
+            f"(min_frames={min_frames}, duration={duration:.1f}s)"
+        )
     timestamp = 0.0
 
     while timestamp < duration:
@@ -91,6 +98,7 @@ def analyze_frame_with_vision_model(
             try:
                 resp = client.chat.completions.create(
                     model=cfg.openai_vision_model,
+                    temperature=0,
                     messages=[
                         {
                             "role": "user",

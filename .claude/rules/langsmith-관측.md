@@ -126,26 +126,45 @@ def embed_chunk(text, cfg):   # ingest 맥락
 
 delta-03-lang-v2 기준. 향후 파이프라인 변경 시 이 섹션 갱신.
 
-### QA (rerank 모드)
+### QA (hybrid + rerank 모드, 기본값)
 
 ```
 qa.request                 [chain]
   qa.1_embed_query         [embedding]
   qa.retrieve              [chain]
-    qa.2_vector_search     [retriever]    후보 15개 반환 (pre_rerank_k)
+    qa.2_search            [chain]        hybrid fusion 묶음
+      qa.2.1_vector_search [retriever]    후보 rerank_pool_size개 반환
+      qa.2.2_bm25_search   [retriever]    BM25 상위 hybrid_bm25_top_k개
+      qa.2.3_rrf_fuse      [tool]         RRF로 두 ranking 병합
     qa.3_rank_candidates   [chain]        metadata: mode=rerank
       qa.3.1_rerank        [retriever]    Cohere API (fallback 시 metadata.skipped)
   qa.4_chat_completion     [llm]          토큰 자동 집계 (OpenAI 시)
 ```
 
-### QA (threshold 모드)
+### QA (hybrid + threshold 모드)
 
 ```
 qa.request                 [chain]
   qa.1_embed_query         [embedding]
   qa.retrieve              [chain]
-    qa.2_vector_search     [retriever]    후보 top_k 반환
+    qa.2_search            [chain]
+      qa.2.1_vector_search [retriever]    후보 top_k 반환
+      qa.2.2_bm25_search   [retriever]    BM25 상위 hybrid_bm25_top_k개
+      qa.2.3_rrf_fuse      [tool]
     qa.3_rank_candidates   [chain]        metadata: mode=threshold (자식 없음)
+  qa.4_chat_completion     [llm]
+```
+
+### QA (use_hybrid=False, rollback 경로)
+
+```
+qa.request                 [chain]
+  qa.1_embed_query         [embedding]
+  qa.retrieve              [chain]
+    qa.2_search            [chain]        자식 1개인 얕은 chain (hybrid 끈 상태)
+      qa.2.1_vector_search [retriever]
+    qa.3_rank_candidates   [chain]
+      qa.3.1_rerank        [retriever]    (use_rerank=True 시)
   qa.4_chat_completion     [llm]
 ```
 

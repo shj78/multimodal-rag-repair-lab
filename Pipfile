@@ -20,6 +20,7 @@ aiofiles = "*"
 ffmpeg-python = "*"
 langsmith = "*"
 rank-bm25 = "*"
+kiwipiepy = "*"
 
 [dev-packages]
 pytest = "*"

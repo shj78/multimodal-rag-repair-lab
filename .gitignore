@@ -52,3 +52,5 @@ evals/**/*.wav
 evals/**/*.m4a
 evals/fixtures/
 evals/temp_frames/
+
+.claude/

@@ -338,6 +338,68 @@ Media: 꽁꽁이 영상 (28개 청크)
 
 ---
 
+### 실험 E — use_rerank=False + threshold 모드 (대조 실험)
+
+> LLM rerank를 제거하고 RRF top-k를 threshold 필터로만 선별.
+
+**Config:**
+
+| 필드 | 값 |
+|---|---|
+| `use_hybrid` | True |
+| `use_hyde` | True |
+| `use_rerank` | **False** (신규) |
+| `search_threshold` | 0.3 |
+| `top_k` | 3 |
+
+**결과:**
+
+- `vec_limit = top_k = 3` → chunk 0(sim ~0.37) vector top-3 진입 불가
+- chunk 0 RRF rank: 6위 (rrf=0.0159), `similarity` 필드 없어 threshold 0 판정 → 탈락
+- accepted: chunk 13, 12, 18
+- 최종 답변: "얼어붙은 한강에서 물을 찾아 헤매던 고양이" — **연도 누락, 실패**
+- **Latency:** total **6.6초** (실험 D 대비 -8초)
+
+**실험 D와의 차이 3가지:**
+1. **vec_limit**: rerank=True → 15개, rerank=False → 3개. pool 자체가 달라 chunk 0 진입 불가
+2. **선별 기준**: LLM은 RRF 순위 + 의미 이해로 판단, threshold는 similarity 수치만 봄 (BM25 출신 chunk는 similarity=0)
+3. **alias 해결**: LLM은 "꽁꽁이=한강 고양이" 맥락 추론 가능, threshold는 수치 필터라 불가
+
+---
+
+### 실험 F — Cohere rerank + kiwipiepy 형태소 분석 (BM25 토크나이저 교체)
+
+> Cohere 환경에서 BM25 토크나이저를 공백 분리 → kiwipiepy 명사 추출로 교체했을 때 RRF rank 변화 확인.
+
+**Config:**
+
+| 필드 | 값 |
+|---|---|
+| `use_hybrid` | True |
+| `use_hyde` | True |
+| `rerank_provider` | **cohere** |
+| `rerank_top_k` | 3 |
+| `rerank_pool_size` | 15 |
+| BM25 토크나이저 | **kiwipiepy** (명사/고유명사 추출, NNG·NNP·NNB·SL·SH·SN) |
+
+**토큰 비교:**
+
+| | 쿼리 토큰 | chunk 0 BM25 점수 | chunk 0 RRF rank |
+|---|---|---|---|
+| 기존 (공백 분리) | `['꽁꽁이가', '처음', '발견된', '해와', '상황은', '무엇인가요']` | 0.000 | **1위** (rrf=0.0317) |
+| kiwipiepy | `['처음', '발견', '해', '상황']` | 0.000 | **4위** (rrf=0.0292) |
+
+**결과:**
+
+- 두 경우 모두 chunk 0 BM25 점수는 0.000 (공백 분리: 조사 불일치, kiwi: "꽁꽁이" 미등록 고유명사로 드롭)
+- kiwipiepy 적용 시 BM25가 다른 청크(chunk 21, 26)를 상위로 올려 RRF에서 chunk 0이 **오히려 하락**
+- 두 경우 모두 Cohere rerank 탈락 → chunk 0 accepted: **✗**
+- 최종 답변: 상황 일부만, **연도 없음 — 실패**
+
+**배운 것:** kiwipiepy가 일반 조사 분리에는 효과적이나, "꽁꽁이" 같은 미등록 고유명사는 토큰에서 아예 드롭되어 BM25 고유명사 매칭 강점을 잃는다. 이 케이스의 근본 병목은 Cohere의 alias 해결 불가로, 토크나이저 교체로는 해결 불가.
+
+---
+
 ## 5. 전체 여정 요약
 
 | 단계 | chunk 0 vector sim | chunk 0 RRF rank | chunk 0 accepted | 최종 답변 정확도 |
@@ -347,6 +409,8 @@ Media: 꽁꽁이 영상 (28개 청크)
 | 실험 B — + HyDE | **0.373** | **1** | ✗ (rerank 탈락) | 실패 |
 | 실험 C — + rerank_top_k↑ | (동일) | (동일) | ✗ (top-7까지 없음) | 실패 |
 | **실험 D — + LLM rerank** | (동일) | (동일) | **✓** | **성공 ("2021년 겨울")** |
+| 실험 E — use_rerank=False | (동일) | 6위 | ✗ (vec pool 3개, threshold 탈락) | 실패 (연도 누락) |
+| 실험 F — Cohere + kiwipiepy | sim=0.392 | 기존 1위 → kiwi 4위 | ✗ (Cohere 탈락 동일) | 실패 (연도 누락) |
 
 ---
 

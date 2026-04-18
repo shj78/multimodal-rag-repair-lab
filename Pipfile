@@ -19,6 +19,7 @@ jinja2 = "*"
 aiofiles = "*"
 ffmpeg-python = "*"
 langsmith = "*"
+rank-bm25 = "*"
 
 [dev-packages]
 pytest = "*"

@@ -105,6 +105,112 @@ def _rank_candidates(
     return [c for c in candidates if c.get("similarity", 0) >= cfg.search_threshold]
 
 
+@traceable(name="qa.2.3_rrf_fuse", run_type="tool")
+def _rrf_fuse(
+    rankings: List[List[Dict[str, Any]]],
+    k: int,
+) -> List[Dict[str, Any]]:
+    """Reciprocal Rank Fusion — 여러 ranking 리스트를 하나로 병합한다.
+
+    공식:
+        final(doc) = Σ  1 / (k + rank_i(doc) + 1)
+                    각 ranking i 대해
+
+    왜 "점수 자체"가 아니라 "순위"만 쓰나:
+      vector similarity(0~1)와 BM25 score(unbounded)는 스케일이 달라
+      직접 가중합하면 한쪽이 지배한다. RRF는 순위만 쓰므로 스케일 무관.
+
+    k의 역할:
+      분모의 오프셋. k=60이면 1등은 1/61 ≈ 0.0164, 10등은 1/71 ≈ 0.0141.
+      k가 클수록 상위/하위 격차가 완만해짐. 60은 원 논문 권장값이며
+      Elasticsearch·Weaviate 등도 기본값으로 채택.
+
+    +1의 이유:
+      rank는 0-based(0이 1등). k=0일 때 0으로 나눠지는 걸 막고,
+      1-based처럼 해석되게 한다.
+
+    같은 chunk가 여러 ranking에 등장하면:
+      점수는 각 ranking에서 받은 값을 "누적"한다 (fusion의 본질).
+      dict 본체(similarity, text 등 필드)는 **첫 등장한 ranking의 것**을 보존.
+      vector_ranking을 먼저 넘기면 vector 쪽 similarity 값이 유지되므로
+      하위 단계(rerank 등)에서 similarity를 참조할 때 문제 없음.
+    """
+    # chunk_index → 누적 RRF 점수
+    scores: Dict[Any, float] = {}
+    # chunk_index → 원본 segment dict (similarity, text 등 보존)
+    doc_map: Dict[Any, Dict[str, Any]] = {}
+
+    # 각 ranking을 돌며 점수를 누적한다.
+    for ranking in rankings:
+        # enumerate: (0, 1등 doc), (1, 2등 doc), ...
+        for rank, doc in enumerate(ranking):
+            key = doc.get("chunk_index")
+            # chunk_index가 없으면 합산 키를 만들 수 없으므로 skip (방어적)
+            if key is None:
+                continue
+            # 기존 점수에 이 ranking에서의 기여분을 더한다.
+            scores[key] = scores.get(key, 0.0) + 1.0 / (k + rank + 1)
+            # 처음 본 chunk만 저장 → vector ranking을 먼저 넘기면 vector dict가 남는다
+            if key not in doc_map:
+                doc_map[key] = doc
+
+    # 누적 점수 기준 내림차순 정렬
+    fused_keys = sorted(scores, key=lambda x: scores[x], reverse=True)
+
+    # 원본 dict에 rrf_score 필드를 추가해서 반환 (디버깅/관측용)
+    fused = [{**doc_map[key], "rrf_score": scores[key]} for key in fused_keys]
+
+    preview = [
+        f"chunk={d.get('chunk_index')} rrf={d['rrf_score']:.4f}"
+        for d in fused[:5]
+    ]
+    print(f"[rrf] fused {len(fused)}개 (first 5): {preview}")
+    return fused
+
+
+@traceable(name="qa.2_search", run_type="chain")
+def _hybrid_search(
+    query: str,
+    query_embedding: List[float],
+    media_id: str,
+    cfg: RetrievalCfg,
+) -> List[Dict[str, Any]]:
+    """Dense(vector) 검색과 BM25 검색을 병렬로 돌려 RRF로 병합한다.
+
+    cfg.use_hybrid=False면 vector 결과만 반환 (rollback 경로).
+    rerank 모드일 때 vector 검색은 rerank_pool_size까지, threshold 모드일 때는
+    top_k까지 가져온다.
+    """
+    from ..supabase_utils import search_similar_segments
+    from .bm25 import bm25_search
+
+    vec_limit = cfg.rerank_pool_size if cfg.use_rerank else cfg.top_k
+    vec_cfg = cfg.model_copy(update={"top_k": vec_limit})
+    print(
+        f"[hybrid] use_hybrid={cfg.use_hybrid} use_rerank={cfg.use_rerank} "
+        f"vec_limit={vec_limit} bm25_top_k={cfg.hybrid_bm25_top_k}"
+    )
+
+    vector_results = search_similar_segments(
+        query_embedding, media_id, cfg=vec_cfg, skip_threshold=True,
+    )
+    vec_preview = [
+        f"chunk={r.get('chunk_index')} sim={r.get('similarity', 0):.3f}"
+        for r in vector_results[:5]
+    ]
+    print(f"[hybrid] vector top-{len(vector_results)} (first 5): {vec_preview}")
+
+    if not cfg.use_hybrid:
+        print("[hybrid] use_hybrid=False — BM25/RRF skip, vector only")
+        return vector_results
+
+    bm25_results = bm25_search(query, media_id, cfg=cfg)
+    fused = _rrf_fuse(
+        [vector_results, bm25_results], k=cfg.hybrid_rrf_k,
+    )
+    return fused
+
+
 def retrieve_segments(
     query: str,
     query_embedding: List[float],
@@ -120,22 +226,8 @@ def retrieve_segments(
         - accepted_segments: 최종 선별된 세그먼트
     """
     cfg = cfg or get_stage_config().retrieval
-    from ..supabase_utils import search_similar_segments
 
-    # rerank 모드는 후보 풀을 rerank_pool_size까지 넓혀서 가져온다.
-    search_cfg = cfg
-    if cfg.use_rerank:
-        search_cfg = cfg.model_copy(
-            update={"top_k": cfg.rerank_pool_size}
-        )
-
-    # threshold 적용은 _rank_candidates가 담당하므로 search 단계는 항상 skip.
-    all_segments = search_similar_segments(
-        query_embedding,
-        media_id,
-        cfg=search_cfg,
-        skip_threshold=True,
-    )
+    all_segments = _hybrid_search(query, query_embedding, media_id, cfg)
 
     accepted_segments = _rank_candidates(all_segments, query, cfg)
 
@@ -144,5 +236,10 @@ def retrieve_segments(
     accepted_indices = {s.get("chunk_index") for s in accepted_segments}
     for seg in all_segments:
         seg["accepted"] = seg.get("chunk_index") in accepted_indices
+
+    accepted_preview = [
+        f"chunk={s.get('chunk_index')}" for s in accepted_segments
+    ]
+    print(f"[retrieve] accepted={len(accepted_segments)}개: {accepted_preview}")
 
     return all_segments, accepted_segments

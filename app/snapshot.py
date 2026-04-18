@@ -94,6 +94,10 @@ def get_config_snapshot() -> Dict[str, Any]:
         "rerank_model": retrieval.rerank_model,
         "rerank_top_k": retrieval.rerank_top_k,
         "rerank_pool_size": retrieval.rerank_pool_size,
+        # ── Hybrid ──
+        "use_hybrid": retrieval.use_hybrid,
+        "hybrid_rrf_k": retrieval.hybrid_rrf_k,
+        "hybrid_bm25_top_k": retrieval.hybrid_bm25_top_k,
     }
 
 

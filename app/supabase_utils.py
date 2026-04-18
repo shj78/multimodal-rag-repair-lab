@@ -144,7 +144,7 @@ def save_segment(
     return response.data
 
 
-@traceable(name="qa.2_vector_search", run_type="retriever")
+@traceable(name="qa.2.1_vector_search", run_type="retriever")
 def search_similar_segments(
     query_embedding: List[float],
     media_id: str,

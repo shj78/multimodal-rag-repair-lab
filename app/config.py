@@ -74,6 +74,11 @@ class Config:
     rerank_top_k: int = 3
     rerank_pool_size: int = 15
 
+    # ── Hybrid Retrieval (BM25 + vector) ──
+    use_hybrid: bool = os.getenv("USE_HYBRID", "true").lower() == "true"
+    hybrid_rrf_k: int = 60  # RRF 상수 (원 논문 권장값)
+    hybrid_bm25_top_k: int = 30  # BM25가 RRF로 넘길 후보 수
+
     # ── Supabase ──
     supabase_url: str = os.getenv("SUPABASE_URL", "")
     supabase_key: str = os.getenv("SUPABASE_KEY", "")
@@ -146,6 +151,9 @@ class RetrievalCfg(BaseModel):
     rerank_top_k: int
     rerank_pool_size: int
     cohere_api_key: str = ""
+    use_hybrid: bool = True
+    hybrid_rrf_k: int = 60
+    hybrid_bm25_top_k: int = 30
 
 
 class QACfg(BaseModel):
@@ -211,6 +219,9 @@ _STAGE_FIELD_MAP: dict[str, dict[str, str]] = {
         "rerank_model": "rerank_model",
         "rerank_top_k": "rerank_top_k",
         "rerank_pool_size": "rerank_pool_size",
+        "use_hybrid": "use_hybrid",
+        "hybrid_rrf_k": "hybrid_rrf_k",
+        "hybrid_bm25_top_k": "hybrid_bm25_top_k",
     },
     "qa": {
         "provider": "chat_provider",
@@ -307,6 +318,9 @@ def get_stage_config() -> PipelineConfig:
             rerank_top_k=CONFIG.rerank_top_k,
             rerank_pool_size=CONFIG.rerank_pool_size,
             cohere_api_key=CONFIG.cohere_api_key,
+            use_hybrid=CONFIG.use_hybrid,
+            hybrid_rrf_k=CONFIG.hybrid_rrf_k,
+            hybrid_bm25_top_k=CONFIG.hybrid_bm25_top_k,
         ),
         qa=QACfg(
             provider=CONFIG.chat_provider,
@@ -380,6 +394,10 @@ print(
   Rerank Model         : {_cfg.retrieval.rerank_model if _cfg.retrieval.use_rerank else "(disabled)"}
   Rerank Top-K         : {_cfg.retrieval.rerank_top_k if _cfg.retrieval.use_rerank else "(disabled)"}
   Rerank Pool Size     : {_cfg.retrieval.rerank_pool_size if _cfg.retrieval.use_rerank else "(disabled)"}
+  ─ Hybrid ─
+  Use Hybrid           : {_cfg.retrieval.use_hybrid}
+  RRF k                : {_cfg.retrieval.hybrid_rrf_k if _cfg.retrieval.use_hybrid else "(disabled)"}
+  BM25 Top-K           : {_cfg.retrieval.hybrid_bm25_top_k if _cfg.retrieval.use_hybrid else "(disabled)"}
 ────────────────────────────────────────
 """
 )

@@ -21,7 +21,7 @@ class Config:
     vision_provider: str = os.getenv("VISION_PROVIDER", "local").lower()
     ollama_vision_model: str = os.getenv("OLLAMA_VISION_MODEL", "llava")
     openai_vision_model: str = os.getenv("OPENAI_VISION_MODEL", "gpt-4o-mini")
-    frames_per_minute: int = 3
+    frames_per_minute: int = 10
 
     # ── Embedding ──
     embedding_provider: str = os.getenv("EMBEDDING_PROVIDER", "local").lower()

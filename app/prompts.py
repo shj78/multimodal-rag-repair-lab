@@ -179,6 +179,27 @@ QA_SYSTEM_PROMPTS = {
 CURRENT_QA_SYSTEM_VERSION = "v3-cot"
 
 
+# ── HyDE (Hypothetical Document Embeddings) 프롬프트 ──
+# 쿼리를 받아 "영상 내용을 모르는 상태에서 상상한 가상 답변"을 생성한다.
+# 이 가상 답변을 임베딩해서 검색하면, 원쿼리와 정답 청크 간 어휘 격차가 줄어
+# vector recall이 개선된다. 가상 답변에 구체 사실이 들어가도 괜찮음 — 어차피
+# 검색에만 쓰이고 최종 답변은 실제 청크에서 생성되므로.
+
+HYDE_PROMPTS = {
+    "v1": (
+        "아래 질문에 대해, 영상의 실제 내용은 모르지만 "
+        "이 질문에 답이 될 법한 짧은 가상 답변을 한두 문장으로 작성하세요.\n\n"
+        "규칙:\n"
+        "- 자연스러운 서술형 문장으로 (질문 반복 금지)\n"
+        "- 구체적인 숫자·장소·상황을 가정해서 자유롭게 포함 가능\n"
+        "- 답변만 출력 (설명 없이)\n\n"
+        "질문: {query}"
+    ),
+}
+
+CURRENT_HYDE_VERSION = "v1"
+
+
 # ── 평가 프롬프트 (LLM-as-Judge) ──
 
 EVAL_ANSWER_RELEVANCE_PROMPTS = {
@@ -378,6 +399,13 @@ def get_qa_system_prompt(version: str = None) -> str:
     """버전에 해당하는 QA 시스템 프롬프트를 반환한다."""
     v = version or CURRENT_QA_SYSTEM_VERSION
     return QA_SYSTEM_PROMPTS[v]
+
+
+def get_hyde_prompt(query: str, version: str = None) -> str:
+    """버전에 해당하는 HyDE 프롬프트에 query를 채워 반환한다."""
+    v = version or CURRENT_HYDE_VERSION
+    template = HYDE_PROMPTS[v]
+    return template.format(query=query)
 
 
 def get_eval_answer_relevance_prompt(version: str = None) -> str:

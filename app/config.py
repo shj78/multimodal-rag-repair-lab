@@ -79,6 +79,10 @@ class Config:
     hybrid_rrf_k: int = 60  # RRF 상수 (원 논문 권장값)
     hybrid_bm25_top_k: int = 30  # BM25가 RRF로 넘길 후보 수
 
+    # ── HyDE (Hypothetical Document Embeddings) ──
+    use_hyde: bool = os.getenv("USE_HYDE", "true").lower() == "true"
+    hyde_prompt_version: str = os.getenv("HYDE_PROMPT_VERSION", "v1")
+
     # ── Supabase ──
     supabase_url: str = os.getenv("SUPABASE_URL", "")
     supabase_key: str = os.getenv("SUPABASE_KEY", "")
@@ -154,6 +158,8 @@ class RetrievalCfg(BaseModel):
     use_hybrid: bool = True
     hybrid_rrf_k: int = 60
     hybrid_bm25_top_k: int = 30
+    use_hyde: bool = True
+    hyde_prompt_version: str = "v1"
 
 
 class QACfg(BaseModel):
@@ -222,6 +228,8 @@ _STAGE_FIELD_MAP: dict[str, dict[str, str]] = {
         "use_hybrid": "use_hybrid",
         "hybrid_rrf_k": "hybrid_rrf_k",
         "hybrid_bm25_top_k": "hybrid_bm25_top_k",
+        "use_hyde": "use_hyde",
+        "hyde_prompt_version": "hyde_prompt_version",
     },
     "qa": {
         "provider": "chat_provider",
@@ -321,6 +329,8 @@ def get_stage_config() -> PipelineConfig:
             use_hybrid=CONFIG.use_hybrid,
             hybrid_rrf_k=CONFIG.hybrid_rrf_k,
             hybrid_bm25_top_k=CONFIG.hybrid_bm25_top_k,
+            use_hyde=CONFIG.use_hyde,
+            hyde_prompt_version=CONFIG.hyde_prompt_version,
         ),
         qa=QACfg(
             provider=CONFIG.chat_provider,
@@ -398,6 +408,9 @@ print(
   Use Hybrid           : {_cfg.retrieval.use_hybrid}
   RRF k                : {_cfg.retrieval.hybrid_rrf_k if _cfg.retrieval.use_hybrid else "(disabled)"}
   BM25 Top-K           : {_cfg.retrieval.hybrid_bm25_top_k if _cfg.retrieval.use_hybrid else "(disabled)"}
+  ─ HyDE ─
+  Use HyDE             : {_cfg.retrieval.use_hyde}
+  HyDE Prompt Version  : {_cfg.retrieval.hyde_prompt_version if _cfg.retrieval.use_hyde else "(disabled)"}
 ────────────────────────────────────────
 """
 )

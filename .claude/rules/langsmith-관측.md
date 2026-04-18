@@ -126,22 +126,27 @@ def embed_chunk(text, cfg):   # ingest 맥락
 
 delta-03-lang-v2 기준. 향후 파이프라인 변경 시 이 섹션 갱신.
 
-### QA (hybrid + rerank 모드, 기본값)
+### QA (hyde + hybrid + rerank 모드, 기본값)
 
 ```
 qa.request                 [chain]
-  qa.1_embed_query         [embedding]
+  qa.0_hyde                [llm]          쿼리 → 가상 답변 (use_hyde=True 시)
+  qa.1_embed_query         [embedding]    HyDE 활성 시 가상 답변을 임베딩
   qa.retrieve              [chain]
     qa.2_search            [chain]        hybrid fusion 묶음
       qa.2.1_vector_search [retriever]    후보 rerank_pool_size개 반환
-      qa.2.2_bm25_search   [retriever]    BM25 상위 hybrid_bm25_top_k개
+      qa.2.2_bm25_search   [retriever]    원 쿼리 기준 BM25 상위 hybrid_bm25_top_k개
       qa.2.3_rrf_fuse      [tool]         RRF로 두 ranking 병합
     qa.3_rank_candidates   [chain]        metadata: mode=rerank
-      qa.3.1_rerank        [retriever]    Cohere API (fallback 시 metadata.skipped)
+      qa.3.1_rerank        [retriever]    원 쿼리 기준 Cohere rerank
   qa.4_chat_completion     [llm]          토큰 자동 집계 (OpenAI 시)
 ```
 
-### QA (hybrid + threshold 모드)
+**쿼리 흐름 주의:** `qa.0_hyde`가 만든 가상 답변은 `qa.1_embed_query`에만 쓰인다.
+BM25(`qa.2.2`)와 rerank(`qa.3.1`)는 **원 쿼리**를 그대로 쓴다 — 희귀 토큰
+매칭과 rerank 판단이 HyDE의 가상 어휘로 희석되지 않게 하기 위함.
+
+### QA (hybrid + threshold 모드, use_hyde=False)
 
 ```
 qa.request                 [chain]
@@ -155,7 +160,7 @@ qa.request                 [chain]
   qa.4_chat_completion     [llm]
 ```
 
-### QA (use_hybrid=False, rollback 경로)
+### QA (use_hybrid=False, use_hyde=False, rollback 경로)
 
 ```
 qa.request                 [chain]

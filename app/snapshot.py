@@ -18,6 +18,7 @@ from .prompts import (
     CURRENT_EVAL_GROUNDEDNESS_VERSION,
     CURRENT_EVAL_RETRIEVAL_PRECISION_VERSION,
     CURRENT_EVAL_VISUAL_TEXT_ALIGNMENT_VERSION,
+    CURRENT_HYDE_VERSION,
     CURRENT_QA_SYSTEM_VERSION,
     CURRENT_RERANK_DOC_VERSION,
     CURRENT_VISION_VERSION,
@@ -25,6 +26,7 @@ from .prompts import (
     EVAL_GROUNDEDNESS_PROMPTS,
     EVAL_RETRIEVAL_PRECISION_PROMPTS,
     EVAL_VISUAL_TEXT_ALIGNMENT_PROMPTS,
+    HYDE_PROMPTS,
     QA_SYSTEM_PROMPTS,
     RERANK_DOC_TEMPLATES,
     TRANSCRIPTION_PROMPTS,
@@ -98,6 +100,9 @@ def get_config_snapshot() -> Dict[str, Any]:
         "use_hybrid": retrieval.use_hybrid,
         "hybrid_rrf_k": retrieval.hybrid_rrf_k,
         "hybrid_bm25_top_k": retrieval.hybrid_bm25_top_k,
+        # ── HyDE ──
+        "use_hyde": retrieval.use_hyde,
+        "hyde_prompt_version": retrieval.hyde_prompt_version,
     }
 
 
@@ -120,6 +125,10 @@ def get_prompt_snapshot() -> Dict[str, Any]:
         "qa_system": {
             "version": CURRENT_QA_SYSTEM_VERSION,
             "text": QA_SYSTEM_PROMPTS[CURRENT_QA_SYSTEM_VERSION],
+        },
+        "hyde": {
+            "version": CURRENT_HYDE_VERSION,
+            "text": HYDE_PROMPTS[CURRENT_HYDE_VERSION],
         },
         "correction": {
             "version": CURRENT_CORRECTION_VERSION,

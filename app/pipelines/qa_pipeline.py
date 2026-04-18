@@ -7,9 +7,13 @@ main.py /qa, evals/_stages.py:run_qa, evaluation_utils.run_full_evaluation에
 
 LangSmith trace 구조 (이름 규칙: 루트/묶음은 도메인 prefix만, 말단은 번호):
     qa.request (root, chain)
+      ├─ qa.0_hyde             (llm, use_hyde=True일 때만)
       ├─ qa.1_embed_query      (embedding)
       ├─ qa.retrieve           (chain)
-      │   ├─ qa.2_vector_search    (retriever)
+      │   ├─ qa.2_search           (chain, hybrid fusion 묶음)
+      │   │   ├─ qa.2.1_vector_search   (retriever)
+      │   │   ├─ qa.2.2_bm25_search     (retriever, use_hybrid=True일 때만)
+      │   │   └─ qa.2.3_rrf_fuse        (tool, use_hybrid=True일 때만)
       │   └─ qa.3_rank_candidates  (chain, mode metadata)
       │       └─ qa.3.1_rerank     (retriever, rerank 모드일 때만)
       └─ qa.4_chat_completion  (llm)   # 1:1 래퍼(qa.generate) 생략
@@ -27,6 +31,7 @@ from ..config import PipelineConfig, get_stage_config
 from ..diagnostics import timer
 from ..embedding import embed_query
 from ..qa.chat import get_answer_by_chat_model
+from ..qa.hyde import generate_hypothetical_answer
 from ..qa.retrieval import retrieve_segments
 
 
@@ -44,8 +49,20 @@ def run_qa(
     cfg = cfg or get_stage_config()
     latency_ms: Dict[str, int] = {}
 
+    # HyDE: 쿼리를 임베딩용 "가상 답변"으로 변형 (use_hyde=True일 때)
+    # BM25/rerank는 원 쿼리를 계속 사용한다 (희귀 토큰 매칭·semantic rerank 유지).
+    embed_input = query
+    if cfg.retrieval.use_hyde:
+        with timer() as t_hyde:
+            embed_input = generate_hypothetical_answer(
+                query,
+                retrieval_cfg=cfg.retrieval,
+                qa_cfg=cfg.qa,
+            )
+        latency_ms["hyde"] = t_hyde()
+
     with timer() as t_embed:
-        query_embedding = embed_query(query, cfg=cfg.embedding)
+        query_embedding = embed_query(embed_input, cfg=cfg.embedding)
     latency_ms["embedding"] = t_embed()
 
     with timer() as t_retrieve:
@@ -61,7 +78,10 @@ def run_qa(
     latency_ms["generation"] = t_gen()
 
     latency_ms["total"] = (
-        latency_ms["embedding"] + latency_ms["retrieval"] + latency_ms["generation"]
+        latency_ms.get("hyde", 0)
+        + latency_ms["embedding"]
+        + latency_ms["retrieval"]
+        + latency_ms["generation"]
     )
 
     run = get_current_run_tree()

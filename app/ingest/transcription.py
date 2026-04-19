@@ -8,14 +8,28 @@ from ..config import TranscriptionCfg, get_stage_config
 from ..prompts import get_transcription_prompt
 
 
+# Whisper는 mono 16kHz 내부 처리라 이 스펙에서 품질 손실이 거의 없고,
+# 48kbps mp3면 1시간 영상이 약 23MB로 OpenAI 25MiB 리밋 안에 들어온다.
+_AUDIO_SAMPLE_RATE = 16000
+_AUDIO_CHANNELS = 1
+_AUDIO_CODEC = "libmp3lame"
+_AUDIO_BITRATE = "48k"
+
+
 @traceable(name="ingest.1_audio_extract", run_type="tool")
 def extract_audio_from_video(video_path: str, output_path: str) -> str:
     (
         ffmpeg.input(video_path)
-        .output(output_path, ar=16000, ac=1)
+        .output(
+            output_path,
+            ar=_AUDIO_SAMPLE_RATE,
+            ac=_AUDIO_CHANNELS,
+            acodec=_AUDIO_CODEC,
+            audio_bitrate=_AUDIO_BITRATE,
+        )
         .run(overwrite_output=True)
     )
-    pass
+    return output_path
 
 
 @traceable(name="ingest.2_transcribe", run_type="tool")

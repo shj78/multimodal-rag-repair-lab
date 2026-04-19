@@ -61,7 +61,7 @@ def _trace_transcribe(
 
     with timer() as t_audio:
         if is_video:
-            audio_path = os.path.join(CONFIG.upload_dir, f"{media_id}_audio.wav")
+            audio_path = os.path.join(CONFIG.upload_dir, f"{media_id}_audio.mp3")
             extract_audio_from_video(file_path, audio_path)
         else:
             audio_path = file_path

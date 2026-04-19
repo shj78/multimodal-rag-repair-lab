@@ -1,5 +1,6 @@
 import os
 from contextlib import contextmanager
+from typing import Literal
 from dotenv import load_dotenv
 from pydantic import BaseModel
 
@@ -31,6 +32,18 @@ class Config:
     )
     chunk_window_seconds: float = 20.0
     chunk_overlap_seconds: float = 5.0
+
+    # ── Chunking 전략 ──
+    # "fixed": 기존 sliding window. "semantic": 임베딩 유사도 breakpoint 기반.
+    chunking_strategy: str = os.getenv("CHUNKING_STRATEGY", "fixed").lower()
+    # semantic 시 인접 유사도 분포의 상위 X% 지점을 경계로 삼는다 (기본 95 → 하위 5% 경계).
+    semantic_breakpoint_percentile: float = float(
+        os.getenv("SEMANTIC_BREAKPOINT_PERCENTILE", "95.0")
+    )
+    # semantic 시 한 청크의 최소 길이 (초). 짧은 filler로 생기는 잡음 경계 억제.
+    semantic_min_chunk_seconds: float = float(
+        os.getenv("SEMANTIC_MIN_CHUNK_SECONDS", "10.0")
+    )
 
     _EMBED_DIMS: dict = {
         "nomic-embed-text": 768,
@@ -133,6 +146,9 @@ class EmbeddingCfg(BaseModel):
     provider: str
     chunk_window_seconds: float
     chunk_overlap_seconds: float
+    chunking_strategy: Literal["fixed", "semantic"] = "fixed"
+    semantic_breakpoint_percentile: float = 95.0
+    semantic_min_chunk_seconds: float = 10.0
     ollama_embed_model: str
     openai_embedding_model: str
     embedding_dim: int
@@ -213,6 +229,9 @@ _STAGE_FIELD_MAP: dict[str, dict[str, str]] = {
         "provider": "embedding_provider",
         "chunk_window_seconds": "chunk_window_seconds",
         "chunk_overlap_seconds": "chunk_overlap_seconds",
+        "chunking_strategy": "chunking_strategy",
+        "semantic_breakpoint_percentile": "semantic_breakpoint_percentile",
+        "semantic_min_chunk_seconds": "semantic_min_chunk_seconds",
         "ollama_embed_model": "ollama_embed_model",
         "openai_embedding_model": "openai_embedding_model",
     },
@@ -318,6 +337,9 @@ def get_stage_config() -> PipelineConfig:
             provider=CONFIG.embedding_provider,
             chunk_window_seconds=CONFIG.chunk_window_seconds,
             chunk_overlap_seconds=CONFIG.chunk_overlap_seconds,
+            chunking_strategy=CONFIG.chunking_strategy,
+            semantic_breakpoint_percentile=CONFIG.semantic_breakpoint_percentile,
+            semantic_min_chunk_seconds=CONFIG.semantic_min_chunk_seconds,
             ollama_embed_model=CONFIG.ollama_embed_model,
             openai_embedding_model=CONFIG.openai_embedding_model,
             embedding_dim=CONFIG.embedding_dim,
@@ -403,8 +425,11 @@ print(
   ─ Search / Chunking ─
   Embedding Dim        : {_cfg.embedding.embedding_dim}
   Frames Per Minute    : {_cfg.vision.frames_per_minute}
-  Chunk Window (sec)   : {_cfg.embedding.chunk_window_seconds}
-  Chunk Overlap (sec)  : {_cfg.embedding.chunk_overlap_seconds}
+  Chunking Strategy    : {_cfg.embedding.chunking_strategy}
+  Chunk Window (sec)   : {_cfg.embedding.chunk_window_seconds}   [fixed only]
+  Chunk Overlap (sec)  : {_cfg.embedding.chunk_overlap_seconds}  [fixed only]
+  Semantic Percentile  : {_cfg.embedding.semantic_breakpoint_percentile}  [semantic only]
+  Semantic Min Chunk   : {_cfg.embedding.semantic_min_chunk_seconds}s [semantic only]
   Search Threshold     : {_cfg.retrieval.search_threshold}
   Search Top-K         : {_cfg.retrieval.top_k}
   ─ Rerank ─

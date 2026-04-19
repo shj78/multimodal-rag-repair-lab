@@ -5,10 +5,11 @@ embedding.py — 텍스트 임베딩 (ingest + qa 공유 도메인)
 양쪽 경계에 걸쳐 있어 특정 도메인 폴더에 속하지 않는다. 기능 단위 이름으로
 루트에 독립시키되, /shared/ 같은 범용 서랍장은 만들지 않는다.
 
-LangSmith trace에는 두 맥락이 섞이지 않도록 얇은 래퍼로 분리한다:
-- embed_query   (qa.1_embed_query)   : 질문 1건을 쿼리 벡터로
-- embed_chunk   (ingest.8_embed_chunk): ingest 중 청크 1건을 문서 벡터로
-두 함수는 같은 내부 로직(_embed_text)을 호출하지만 trace 이름과 도메인이
+LangSmith trace에는 여러 맥락이 섞이지 않도록 얇은 래퍼로 분리한다:
+- embed_query                (qa.1_embed_query)        : 질문 1건을 쿼리 벡터로
+- embed_chunk                (ingest.8_embed_chunk)    : ingest 중 청크 1건을 문서 벡터로
+- embed_segment_for_boundary (ingest.6.1_embed_boundary): semantic 청킹의 경계 탐지용 segment 임베딩
+세 함수 모두 같은 내부 로직(_embed_text)을 호출하지만 trace 이름과 도메인이
 다르므로 LangSmith UI에서 충돌 없이 필터·집계가 가능하다.
 """
 
@@ -59,4 +60,16 @@ def embed_query(text: str, cfg: EmbeddingCfg | None = None) -> List[float]:
 @traceable(name="ingest.8_embed_chunk", run_type="embedding")
 def embed_chunk(text: str, cfg: EmbeddingCfg | None = None) -> List[float]:
     """ingest 중 멀티모달 컨텍스트(청크+프레임) 1건을 벡터로 임베딩."""
+    return _embed_text(text, cfg)
+
+
+@traceable(name="ingest.6.1_embed_boundary", run_type="embedding")
+def embed_segment_for_boundary(
+    text: str, cfg: EmbeddingCfg | None = None
+) -> List[float]:
+    """semantic 청킹의 경계 탐지용 segment 임베딩.
+
+    chunk 임베딩(embed_chunk)과 목적이 다르다. 이 결과는 DB에 저장되지 않고
+    오직 인접 segment 간 유사도 계산에만 쓰인다.
+    """
     return _embed_text(text, cfg)

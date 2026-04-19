@@ -44,7 +44,7 @@ from ..supabase_utils import (
 
 
 _VIDEO_EXTS = {"mp4", "mov", "avi", "mkv", "webm"}
-_VISION_CONCURRENCY = 4  # OpenAI Vision API rate limit 대비 동시 실행 수
+_VISION_CONCURRENCY = 2  # OpenAI Vision API rate limit 대비 동시 실행 수
 
 
 def _is_video_file(filename: str) -> bool:

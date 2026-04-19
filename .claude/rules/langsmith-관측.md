@@ -97,6 +97,8 @@ LangSmith를 쓰면서 헷갈릴 때 이 세 가지만 기억한다.
 
 **예외 — major grouping helper**: ingest처럼 leaf run이 루프 때문에 길게 펼쳐져 trace 가독성이 떨어질 때는 pipeline 내부 `_trace_*` helper로 묶음을 둔다 (구조 규칙 `app-구조.md` §3 참조). LangSmith 이름은 `ingest.vision`처럼 도메인 언어로 둔다.
 
+**evals 같은 외부 caller의 직접 호출**: `_trace_*`는 기본적으로 pipeline(`run_*`) 내부에서 부르지만, pipeline과 동일한 stage 경계로 동작하는 외부 caller(현재 `evals/_stages.py`)는 예외적으로 직접 호출 가능하다 — 허용 caller 목록은 `app-구조.md` §3이 단일 진실 공급원. 이 경우 `ingest.request` 루트 없이 `ingest.transcribe`/`ingest.vision`/`ingest.embed`가 각각 stage root로 찍힌다. evals는 stage 단위로 실행되므로 자연스러운 구조이며, leaf run이 부모 없이 흩어지는 고아 run 현상은 사라진다.
+
 ---
 
 ## 5. 동명 함수 처리
@@ -224,14 +226,11 @@ ingest.request             [chain]
 
 ## 8. 미해결 이슈
 
-### evals 호출 경로 고아 run
+### evals 호출 경로 고아 run (부분 해소 — evaluation_utils만 남음)
 
-`evals/_stages.py`는 현재 `pipelines.run_ingest` / `pipelines.run_qa`를 호출하지 않고 도메인 util을 **직접 호출**한다. 이 util들에 `@traceable`이 달려 있으므로, evals 실행 시 각 호출이 **부모 없는 루트 trace**로 찍힌다.
+**해소된 부분**: `evals/_stages.py`는 이제 `_trace_transcribe` / `_trace_vision` / `_trace_embed` + `pipelines.qa_pipeline.run_qa`를 호출하므로, leaf가 부모 없이 흩어지는 고아 run 현상은 사라졌다. evals는 stage 단위 실행 특성상 `ingest.request` 루트가 아니라 `ingest.transcribe`/`ingest.vision`/`ingest.embed`/`qa.request`가 각각 root로 찍힌다 — 이는 evals의 본 설계에 맞는 자연스러운 모양이다. `_trace_*`의 외부 호출 허용 조항은 `app-구조.md` §3 참조.
 
-- 증상: LangSmith에 `ingest.6_chunk`, `ingest.7_multimodal`, `qa.2_vector_search` 등이 루트 레벨에서 대량으로 생성
-- 원인: evals가 파이프라인 오케스트레이션을 자체 재현 (`_stages.py`의 embed/qa 단계가 util 순차 호출)
-- 임시 대응: Runs 리스트 필터로 `Name contains ".request"` 걸어 고아 run 숨김
-- 근본 해결: 별도 PR에서 `evals/_stages.py`와 `evaluation_utils.run_full_evaluation`이 `run_qa` / `run_ingest`를 호출하도록 교체
+**남은 부분**: `app/evaluation_utils.py:run_full_evaluation`은 여전히 도메인 util을 직접 호출한다. `/evaluate` 엔드포인트 경로에서 고아 run이 계속 발생. 별도 PR에서 `pipelines.qa_pipeline.run_qa`를 호출하도록 교체 예정.
 
 ### Ollama 로컬 모드의 `llm` 집계
 

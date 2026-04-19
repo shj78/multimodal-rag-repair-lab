@@ -42,9 +42,8 @@ from ..supabase_utils import (
     update_media_status,
 )
 
-
 _VIDEO_EXTS = {"mp4", "mov", "avi", "mkv", "webm"}
-_VISION_CONCURRENCY = 2  # OpenAI Vision API rate limit 대비 동시 실행 수
+_VISION_CONCURRENCY = 4  # OpenAI Vision API rate limit 대비 동시 실행 수
 
 
 def _is_video_file(filename: str) -> bool:
@@ -72,9 +71,7 @@ def _trace_transcribe(
     return segments, t_audio(), t_transcribe()
 
 
-def _analyze_frames_parallel(
-    frames: List[Dict[str, Any]], cfg
-) -> List[Dict[str, Any]]:
+def _analyze_frames_parallel(frames: List[Dict[str, Any]], cfg) -> List[Dict[str, Any]]:
     if not frames:
         return []
 
@@ -126,9 +123,11 @@ def _trace_embed(
 
             embedding = embed_chunk(context_text, cfg=embed_cfg)
             matched_frames = [
-                f for f in frame_analyses
+                f
+                for f in frame_analyses
                 if chunk["start"] <= f["timestamp"] <= chunk["end"]
             ]
+
             def _fmt_ts(sec: float) -> str:
                 m, s = divmod(int(sec), 60)
                 return f"{m}분 {s}초" if m else f"{s}초"
@@ -138,7 +137,8 @@ def _trace_embed(
                     f"[{_fmt_ts(f['timestamp'])}] {f['description']}"
                     for f in matched_frames
                 )
-                if matched_frames else None
+                if matched_frames
+                else None
             )
             save_segment(
                 media_id=media_id,
@@ -224,9 +224,9 @@ def run_ingest(
 
     except OpenAIAuthError:
         job_store[job_id]["status"] = "failed"
-        job_store[job_id]["error"] = (
-            "OpenAI API 키가 유효하지 않습니다. OPENAI_API_KEY를 확인하세요."
-        )
+        job_store[job_id][
+            "error"
+        ] = "OpenAI API 키가 유효하지 않습니다. OPENAI_API_KEY를 확인하세요."
         try:
             update_media_status(media_id, "failed")
         except Exception:

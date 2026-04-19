@@ -74,6 +74,9 @@ def get_config_snapshot() -> Dict[str, Any]:
         "embedding_dim": embedding.embedding_dim,
         "chunk_window_seconds": embedding.chunk_window_seconds,
         "chunk_overlap_seconds": embedding.chunk_overlap_seconds,
+        "chunking_strategy": embedding.chunking_strategy,
+        "semantic_breakpoint_percentile": embedding.semantic_breakpoint_percentile,
+        "semantic_min_chunk_seconds": embedding.semantic_min_chunk_seconds,
         # ── Correction ──
         "use_correction": cfg.correction.enabled,
         "correction_provider": cfg.correction.provider,

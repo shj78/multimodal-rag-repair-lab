@@ -86,14 +86,14 @@ app/
 | 패턴 | 역할 | 예 |
 | --- | --- | --- |
 | **`run_*`** | pipeline의 public entrypoint. route·evals 같은 외부가 호출 | `run_qa`, `run_ingest` |
-| **`_trace_*`** | pipeline 내부 private grouping helper. 여러 leaf를 묶는 용도. **목적은 trace tree grouping** — 상세는 `langsmith-관측.md` §4 예외 조항 | `_trace_transcribe`, `_trace_vision`, `_trace_embed` |
+| **`_trace_*`** | pipeline의 stage helper. 여러 leaf를 묶는 grouping 역할 + stage 단위 실행을 한 몸으로 제공. 기본은 pipeline 내부용이지만, 동일 stage를 외부에서 그대로 돌려야 하는 caller(evals 등)는 예외적으로 직접 호출 허용 | `_trace_transcribe`, `_trace_vision`, `_trace_embed` |
 | **leaf util** | 자유 명명. 관측 이름(trace name)과 1:1 강제 없음 | `get_answer_by_chat_model`, `search_similar_segments` |
 
 - `run_*`는 **외부에서 호출되는 흐름 진입점**에만 쓴다. pipeline 내부의 보조 함수는 `run_*` 쓰지 않는다.
-- `_trace_*`는 grouping만이 역할인 private 헬퍼. 외부 계약이 아니므로 public 경로로 노출하지 않는다.
+- `_trace_*`는 grouping + stage 실행을 묶은 helper. 기본 사용처는 pipeline(`run_*`) 내부이고, `_` prefix는 "함부로 쓰지 말라"는 약한 경고로 유지한다. 단, **pipeline과 동일한 stage 경계를 그대로 쓰는 caller**(현재는 `evals/_stages.py`)는 고아 run 방지를 위해 직접 호출 가능 — 이 예외 경로는 여기 명시된 caller에만 한정한다.
 - leaf util의 Python 함수명은 **코드 내부 안정성 우선**. 관측만의 이유로 이름 바꾸지 않는다.
 
-**왜**: `run_*`는 원본 코드(`evals/_stages.py`)가 이미 쓰던 언어. 새 철학 도입이 아니라 기존 언어를 app에도 가져온 것. `_trace_*` prefix는 "이건 grouping 전용이지 business 함수가 아니다"를 이름 한 줄로 드러낸다.
+**왜**: `run_*`는 원본 코드(`evals/_stages.py`)가 이미 쓰던 언어. 새 철학 도입이 아니라 기존 언어를 app에도 가져온 것. `_trace_*` prefix는 "이건 grouping 전용이지 자유롭게 재사용할 business API가 아니다"를 이름 한 줄로 드러낸다. evals 예외를 인정하는 이유는 evals가 pipeline과 같은 stage 경계를 쓰므로 별도 API를 만들면 중복(2회 구현 → drift)이 더 큰 비용이기 때문이다.
 
 ### 파일 명명
 

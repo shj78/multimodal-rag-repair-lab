@@ -14,7 +14,6 @@ from rank_bm25 import BM25Okapi
 
 from ..config import RetrievalCfg, get_stage_config
 
-
 _TOKEN_RE = re.compile(r"[A-Za-z0-9가-힣]+")
 
 
@@ -51,10 +50,7 @@ def bm25_search(
 
     corpus_tokens = [_tokenize(s.get("text") or "") for s in segments]
     query_tokens = _tokenize(query)
-    print(
-        f"[bm25] corpus={len(segments)}개 청크, "
-        f"query_tokens={query_tokens}"
-    )
+    print(f"[bm25] corpus={len(segments)}개 청크, " f"query_tokens={query_tokens}")
 
     if not query_tokens:
         print("[bm25] query 토큰 없음 — BM25 skip")
@@ -64,15 +60,13 @@ def bm25_search(
     scores = bm25.get_scores(query_tokens)
 
     scored = [
-        {**seg, "bm25_score": float(score)}
-        for seg, score in zip(segments, scores)
+        {**seg, "bm25_score": float(score)} for seg, score in zip(segments, scores)
     ]
     scored.sort(key=lambda s: s["bm25_score"], reverse=True)
     top = scored[: cfg.hybrid_bm25_top_k]
 
     preview = [
-        f"chunk={s.get('chunk_index')} score={s['bm25_score']:.3f}"
-        for s in top[:5]
+        f"chunk={s.get('chunk_index')} score={s['bm25_score']:.3f}" for s in top[:5]
     ]
     print(f"[bm25] top-{len(top)} (first 5): {preview}")
     return top

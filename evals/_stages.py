@@ -1,8 +1,14 @@
 """
 _stages.py — 파이프라인 단계별 실행 함수
 
-각 함수는 app/ 모듈을 호출하고, 결과 + 소요시간을 반환한다.
-fixture 저장도 여기서 처리한다.
+evals는 pipeline과 동일한 stage 경계를 사용하므로 각 stage를 app 쪽 pipeline helper에
+위임한다. 덕분에 trace leaf가 고아 run으로 흩어지지 않고 `ingest.transcribe`,
+`ingest.vision`, `ingest.embed`, `qa.request`가 각각 stage root로 묶여서 찍힌다.
+
+- `_trace_*` helper 직접 호출 허용 근거: `.claude/rules/app-구조.md` §3 예외 조항.
+- fixture 저장, audio/frames 임시파일 정리, media_files 행 life-cycle은 evals 고유 관심사.
+
+각 함수는 (결과, 소요시간) 또는 evals 호출부가 기대하는 튜플을 반환한다.
 """
 
 import os
@@ -10,9 +16,9 @@ import shutil
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
-from app.config import get_stage_config
+from app.config import CONFIG, get_stage_config
 
-from evals._common import EVALS_DIR, save_fixture, timer
+from evals._common import save_fixture, timer
 
 # ── transcribe ──
 
@@ -20,25 +26,32 @@ from evals._common import EVALS_DIR, save_fixture, timer
 def run_transcribe(
     source_path: str, dataset: str, config_snapshot: dict
 ) -> Tuple[List[Dict], int]:
-    """오디오 추출 → 전사 → segments fixture 저장.
+    """전사 stage 실행 + segments fixture 저장.
+
+    pipeline helper(_trace_transcribe)를 호출하므로 오디오 추출·전사가
+    `ingest.transcribe` root 아래 leaf(`ingest.1_audio_extract`,
+    `ingest.2_transcribe`)로 묶인다.
 
     Returns:
-        (segments, latency_ms)
+        (segments, latency_ms)  — latency는 오디오 추출 + 전사 합산
     """
-    # lazy import: faster-whisper 모델 로딩이 무거우므로 실행 시점까지 지연
-    from app.ingest.transcription import extract_audio_from_video, transcribe_audio
+    from app.pipelines.ingest_pipeline import _trace_transcribe
 
-    print("[transcribe] 오디오 추출 중...")
-    base, _ = os.path.splitext(source_path)
-    audio_path = f"{base}_audio.wav"
-    with timer() as t_audio:
-        extract_audio_from_video(source_path, audio_path)
-    print(f"[transcribe] 오디오 추출 완료 ({t_audio()}ms)")
+    # audio 임시 파일 경로 충돌을 피하려고 실행마다 유니크한 id 부여
+    temp_media_id = f"eval_{uuid.uuid4().hex[:8]}"
+    audio_path = os.path.join(CONFIG.upload_dir, f"{temp_media_id}_audio.wav")
 
-    print("[transcribe] 전사 중...")
-    with timer() as t_transcribe:
-        segments = transcribe_audio(audio_path)
-    print(f"[transcribe] 전사 완료: {len(segments)}개 세그먼트 ({t_transcribe()}ms)")
+    print("[transcribe] 전사 stage 실행 중...")
+    try:
+        segments, audio_ms, transcribe_ms = _trace_transcribe(
+            source_path, temp_media_id, is_video=True
+        )
+    finally:
+        if os.path.exists(audio_path):
+            os.remove(audio_path)
+
+    total_ms = audio_ms + transcribe_ms
+    print(f"[transcribe] 완료: {len(segments)}개 세그먼트 ({total_ms}ms)")
 
     save_fixture(
         "segments",
@@ -50,13 +63,10 @@ def run_transcribe(
             "openai_whisper_model": config_snapshot["openai_whisper_model"],
             "whisper_prompt_version": config_snapshot.get("whisper_prompt_version", ""),
         },
-        latency_ms=t_transcribe(),
+        latency_ms=transcribe_ms,
     )
 
-    if os.path.exists(audio_path):
-        os.remove(audio_path)
-
-    return segments, t_transcribe()
+    return segments, total_ms
 
 
 # ── vision ──
@@ -65,41 +75,28 @@ def run_transcribe(
 def run_vision(
     source_path: str, dataset: str, config_snapshot: dict
 ) -> Tuple[List[Dict], int]:
-    """프레임 추출 → 비전 분석 → frame_analyses fixture 저장.
+    """비전 stage 실행 + frame_analyses fixture 저장.
+
+    pipeline helper(_trace_vision)를 호출하므로 프레임 추출·분석이
+    `ingest.vision` root 아래로 묶이고, 프레임 분석은 pipeline에서 이미 4-worker
+    ThreadPoolExecutor로 병렬 처리된다.
 
     Returns:
         (frame_analyses, latency_ms)
     """
-    # lazy import: cv2 + ollama 비전 호출이 무거우므로 실행 시점까지 지연
-    from app.ingest.vision import analyze_frame_with_vision_model, extract_key_frames
+    from app.pipelines.ingest_pipeline import _trace_vision
 
-    frames_dir = str(EVALS_DIR / "temp_frames" / dataset)
-    os.makedirs(frames_dir, exist_ok=True)
+    temp_media_id = f"eval_{uuid.uuid4().hex[:8]}"
+    frames_dir = os.path.join(CONFIG.frames_dir, temp_media_id)
 
-    print("[vision] 프레임 추출 중...")
-    frames = extract_key_frames(
-        source_path, frames_dir, frames_per_minute=get_stage_config().vision.frames_per_minute
-    )
-    print(f"[vision] {len(frames)}개 프레임 추출 완료")
+    print("[vision] 비전 stage 실행 중...")
+    try:
+        frame_analyses, vision_ms = _trace_vision(source_path, temp_media_id)
+    finally:
+        if os.path.exists(frames_dir):
+            shutil.rmtree(frames_dir)
 
-    print("[vision] 비전 분석 중...")
-    frame_analyses = []
-    with timer() as t_vision:
-        for i, frame in enumerate(frames, 1):
-            with timer() as t_frame:
-                description = analyze_frame_with_vision_model(
-                    frame["frame_path"], frame["timestamp"]
-                )
-            frame_analyses.append(
-                {
-                    "timestamp": frame["timestamp"],
-                    "description": description,
-                    "latency_ms": t_frame(),
-                }
-            )
-            print(f"  [{i}/{len(frames)}] {frame['timestamp']:.1f}s ({t_frame()}ms)")
-
-    print(f"[vision] 비전 분석 완료 ({t_vision()}ms)")
+    print(f"[vision] 완료: {len(frame_analyses)}개 프레임 ({vision_ms}ms)")
 
     save_fixture(
         "frame_analyses",
@@ -111,13 +108,10 @@ def run_vision(
             "prompt_version": config_snapshot["prompt_version"],
             "frames_per_minute": config_snapshot["frames_per_minute"],
         },
-        latency_ms=t_vision(),
+        latency_ms=vision_ms,
     )
 
-    if os.path.exists(frames_dir):
-        shutil.rmtree(frames_dir)
-
-    return frame_analyses, t_vision()
+    return frame_analyses, vision_ms
 
 
 # ── embed ──
@@ -126,30 +120,28 @@ def run_vision(
 def run_embed_and_save(
     segments: List[Dict], frame_analyses: List[Dict], config_snapshot: dict
 ) -> Tuple[str, int]:
-    """Vision-guided 교정 → 청킹 + 임베딩 + DB 저장.
+    """Vision-guided 교정 → media_files 행 생성 → 청킹·임베딩·저장 → status=ready.
+
+    청킹·임베딩·세그먼트 저장은 pipeline helper(_trace_embed) 내부에서 수행.
+    correction과 media_files 행 life-cycle은 run_ingest의 오케스트레이션 순서를
+    그대로 재현한다. 다만 evals용 metadata(source="evals", config snapshot)는 여기서 주입.
 
     Returns:
-        (media_id, latency_ms)
+        (media_id, latency_ms)  — latency는 correction + embed + status update 합산
     """
     from app.ingest.correction import correct_transcription_with_vision
-    from app.embedding import embed_chunk
-    from app.ingest.chunking import chunk_segments
-    from app.ingest.multimodal import combine_multimodal_context
-    from app.supabase_utils import save_media_file, save_segment, update_media_status
-
-    # ── correction (enabled 시에만) ──
-    correction_cfg = get_stage_config().correction
-    if correction_cfg.enabled and frame_analyses:
-        print("[embed] Vision-guided 전사 교정 중...")
-        with timer() as t_correction:
-            segments = correct_transcription_with_vision(segments, frame_analyses, correction_cfg)
-        print(f"[embed] 교정 완료 ({t_correction()}ms)")
+    from app.pipelines.ingest_pipeline import _trace_embed
+    from app.supabase_utils import save_media_file, update_media_status
 
     media_id = str(uuid.uuid4())
 
-    print(f"[embed] 청킹 + 임베딩 중... (media_id={media_id})")
-    with timer() as t_embed:
-        chunks = chunk_segments(segments)
+    with timer() as t_total:
+        correction_cfg = get_stage_config().correction
+        if correction_cfg.enabled and frame_analyses:
+            print("[embed] Vision-guided 전사 교정 중...")
+            segments = correct_transcription_with_vision(
+                segments, frame_analyses, correction_cfg
+            )
 
         total_duration = max((s["end"] for s in segments), default=0)
         full_transcript = " ".join(seg.get("text", "").strip() for seg in segments)
@@ -162,31 +154,16 @@ def run_embed_and_save(
             full_transcript=full_transcript,
         )
 
-        for chunk in chunks:
-            context_text = combine_multimodal_context(
-                [chunk], frame_analyses, chunk["start"], chunk["end"]
-            )
-            embedding = embed_chunk(context_text)
-            matched_descs = [
-                f["description"]
-                for f in frame_analyses
-                if chunk["start"] <= f["timestamp"] <= chunk["end"]
-            ]
-            frame_desc = " | ".join(matched_descs) if matched_descs else None
-            save_segment(
-                media_id=media_id,
-                chunk_index=chunk["chunk_index"],
-                text=chunk["text"],
-                start_time=chunk["start"],
-                end_time=chunk["end"],
-                embedding=embedding,
-                frame_description=frame_desc,
-            )
+        print(f"[embed] 청킹·임베딩 중... (media_id={media_id})")
+        chunks, embed_ms = _trace_embed(media_id, segments, frame_analyses)
 
         update_media_status(media_id, "ready", segment_count=len(chunks))
 
-    print(f"[embed] {len(chunks)}개 세그먼트 저장 완료 ({t_embed()}ms)")
-    return media_id, t_embed()
+    print(
+        f"[embed] {len(chunks)}개 세그먼트 저장 완료 "
+        f"(전체 {t_total()}ms, embed 순수 {embed_ms}ms)"
+    )
+    return media_id, t_total()
 
 
 # ── qa ──
@@ -199,23 +176,21 @@ def run_qa(
 ) -> Tuple[List[Dict], Dict[str, Any], int]:
     """QA 실행 + 메트릭 계산.
 
+    각 질문마다 pipeline의 run_qa를 호출해서 embedding·retrieval·generation이
+    `qa.request` root 아래 묶이게 한다. 메트릭 계산과 WER은 evals 고유 책임.
+
     Returns:
         (qa_results, metrics, latency_ms)
     """
-    # lazy import: LLM 호출 모듈을 실행 시점까지 지연
-    from app.qa.chat import get_answer_by_chat_model
+    # pipeline의 run_qa는 이름이 같으니 alias로 import (evals._stages.run_qa 자신)
+    from app.pipelines.qa_pipeline import run_qa as _pipeline_run_qa
     from app.evaluation_utils import (
         calculate_answer_relevance,
         calculate_groundedness,
         calculate_retrieval_precision,
         calculate_wer_cer,
     )
-    from app.embedding import embed_query
-    from app.qa.retrieval import retrieve_segments
-    from app.supabase_utils import (
-        get_media_by_id,
-        get_media_segments,
-    )
+    from app.supabase_utils import get_media_by_id, get_media_segments
 
     print(f"[qa] {len(questions)}개 질문으로 QA 실행 중...")
 
@@ -224,16 +199,12 @@ def run_qa(
         for i, q in enumerate(questions, 1):
             query = q["query"]
             with timer() as t_question:
-                # 검색 + 선별 (rerank/threshold)
-                query_embedding = embed_query(query)
-                all_candidates, accepted = retrieve_segments(
-                    query, query_embedding, media_id
-                )
+                result = _pipeline_run_qa(query, media_id)
+                all_candidates = result["all_segments"]
+                accepted = result["accepted"]
+                answer = result["answer"]
+                context_text = result["context_text"]
 
-                # 답변 생성
-                answer, context_text = get_answer_by_chat_model(query, accepted)
-
-                # 메트릭 수집
                 relevance = calculate_answer_relevance(query, answer)
                 groundedness = calculate_groundedness(answer, context_text)
                 precision = calculate_retrieval_precision(accepted, query)
@@ -260,10 +231,14 @@ def run_qa(
                         "retrieval_precision": precision,
                     },
                     "latency_ms": t_question(),
+                    "latency_breakdown": result.get("latency_ms"),
+                    "trace_id": result.get("trace_id"),
                 }
             )
             print(
-                f"  [{i}/{len(questions)}] AR={relevance:.2f} GR={groundedness:.2f} RP={precision:.2f} ({t_question()}ms)"
+                f"  [{i}/{len(questions)}] "
+                f"AR={relevance:.2f} GR={groundedness:.2f} RP={precision:.2f} "
+                f"({t_question()}ms)"
             )
 
     # WER + CER (reference가 있을 때만)
@@ -279,7 +254,6 @@ def run_qa(
         wer_score, cer_score = calculate_wer_cer(reference, full_transcript)
         print(f"[qa] WER={wer_score:.3f}  CER={cer_score:.3f}")
 
-    # 메트릭 집계
     def avg(key):
         vals = [r["metrics"][key] for r in qa_results]
         return sum(vals) / len(vals) if vals else 0.0

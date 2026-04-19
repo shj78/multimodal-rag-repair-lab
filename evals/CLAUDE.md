@@ -523,6 +523,25 @@ evals/
 
 ## 11. 버그 수정 이력
 
+### evals → pipeline helper 재배선 (2026-04-19)
+
+**배경**: `evals/_stages.py`가 app의 도메인 util(`transcribe_audio`, `analyze_frame_with_vision_model`, `chunk_segments`, `search_similar_segments` 등)을 직접 호출하면서 LangSmith에 `ingest.6_chunk`, `qa.2_vector_search` 같은 leaf run이 부모 없이 찍히는 고아 run 현상이 있었다. 또한 vision 분석이 evals에서는 직렬, pipeline에서는 4-worker 병렬로 돌아 latency 조건이 불일치했다.
+
+**수정**:
+
+- `evals/_stages.py`의 각 stage 함수를 `app/pipelines/ingest_pipeline._trace_transcribe` / `_trace_vision` / `_trace_embed` 및 `app/pipelines/qa_pipeline.run_qa` 호출로 교체.
+- `_trace_*`는 원래 "pipeline 내부 private grouping helper"로 선언돼 있었는데, evals가 pipeline과 동일한 stage 경계를 쓰므로 예외 caller로 허용하도록 `.claude/rules/app-구조.md` §3과 `langsmith-관측.md` §4·§8 문구를 다듬었다. `_trace_*` 함수명은 유지 — prefix는 "자유롭게 재사용하지 말라"는 약한 경고로 계속 기능.
+- correction과 `save_media_file`·`update_media_status` 호출은 evals 고유 metadata(`source="evals"`, config snapshot 포함)를 주입해야 해서 `run_embed_and_save` 안에 남겨 뒀다.
+- audio/frames 임시 파일은 기존 `EVALS_DIR/temp_frames/{dataset}` 대신 `CONFIG.upload_dir`·`CONFIG.frames_dir` 아래 `eval_{uuid8}` 경로를 쓰고 finally 절에서 정리.
+
+**결과물 JSON 변화**:
+
+- `qa_results[].latency_ms` 유지.
+- `qa_results[].latency_breakdown` 신규(`{embedding, retrieval, generation, total}`), `qa_results[].trace_id` 신규 — pipeline.run_qa가 반환하는 분해 latency와 LangSmith run id를 그대로 실어 준다.
+- `frame_analyses` fixture의 각 항목에서 `latency_ms` 필드가 사라졌다(pipeline helper는 묶음 latency만 보고). fingerprint에는 영향 없음.
+
+**남은 일**: `app/evaluation_utils.py:run_full_evaluation`은 아직 util을 직접 호출해서 `/evaluate` 엔드포인트의 고아 run은 그대로다. 별도 PR에서 같은 방식으로 `pipelines.qa_pipeline.run_qa`를 호출하도록 교체 예정.
+
 ### `--changed qa --dataset`에서 media_id=None 버그 (2026-04-04)
 
 **증상**: `--changed qa --target qa --dataset interview`로 실행하면 QA가 sources=0, 컨텍스트 없이 돌아감.

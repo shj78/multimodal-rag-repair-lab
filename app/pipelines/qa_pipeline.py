@@ -28,7 +28,7 @@ from langsmith import traceable
 from langsmith.run_helpers import get_current_run_tree
 
 from ..config import PipelineConfig, get_stage_config
-from ..diagnostics import timer
+from ..diagnostics import attach_config_to_run, attach_stage_cfg_to_run, timer
 from ..embedding import embed_query
 from ..qa.chat import get_answer_by_chat_model
 from ..qa.hyde import generate_hypothetical_answer
@@ -40,13 +40,17 @@ def run_qa(
     query: str,
     media_id: str,
     cfg: Optional[PipelineConfig] = None,
+    source: str = "app",
 ) -> Dict[str, Any]:
     """질문 1건을 처리해 답변·근거·구간별 latency·trace_id를 반환한다.
 
     응답 dict의 latency_ms shape은 기존 /qa 응답과 동일하게
     {embedding, retrieval, generation, total} 4-key를 유지한다.
+
+    source는 LangSmith run에 "app" / "evals" / "evaluate"로 표식만 남긴다.
     """
     cfg = cfg or get_stage_config()
+    attach_config_to_run(source)
     latency_ms: Dict[str, int] = {}
 
     # HyDE: 쿼리를 임베딩용 "가상 답변"으로 변형 (use_hyde=True일 때)
@@ -105,4 +109,5 @@ def run_retrieve(
     cfg: PipelineConfig,
 ):
     """검색 + 선별 단계를 trace의 child run으로 노출한다."""
+    attach_stage_cfg_to_run("retrieval", cfg.retrieval)
     return retrieve_segments(query, query_embedding, media_id, cfg=cfg.retrieval)

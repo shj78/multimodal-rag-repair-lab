@@ -29,7 +29,12 @@ from langsmith.run_helpers import get_current_run_tree
 from openai import AuthenticationError as OpenAIAuthError
 
 from ..config import CONFIG, get_stage_config
-from ..diagnostics import StageTimer, get_config_snapshot, timer
+from ..diagnostics import (
+    StageTimer,
+    attach_config_to_run,
+    attach_stage_cfg_to_run,
+    timer,
+)
 from ..embedding import embed_chunk
 from ..ingest.chunking import chunk_segments
 from ..ingest.correction import correct_transcription_with_vision
@@ -58,6 +63,7 @@ def _trace_transcribe(
     is_video: bool,
 ) -> Tuple[List[Dict[str, Any]], int, int]:
     cfg = get_stage_config().transcription
+    attach_stage_cfg_to_run("transcription", cfg)
 
     with timer() as t_audio:
         if is_video:
@@ -100,6 +106,7 @@ def _trace_vision(
     media_id: str,
 ) -> Tuple[List[Dict[str, Any]], int]:
     cfg = get_stage_config().vision
+    attach_stage_cfg_to_run("vision", cfg)
 
     with timer() as t_vision:
         frames_dir = os.path.join(CONFIG.frames_dir, media_id)
@@ -121,6 +128,7 @@ def _trace_embed(
     frame_analyses: List[Dict[str, Any]],
 ) -> Tuple[List[Dict[str, Any]], int]:
     embed_cfg = get_stage_config().embedding
+    attach_stage_cfg_to_run("embedding", embed_cfg)
 
     with timer() as t_embed:
         chunks = chunk_segments(segments, cfg=embed_cfg)
@@ -169,6 +177,7 @@ def run_ingest(
     file_path: str,
     filename: str,
     job_store: Dict[str, Dict[str, Any]],
+    source: str = "app",
 ) -> None:
     """미디어 1건을 전사·비전·교정·임베딩 단계로 돌려 저장까지 마친다.
 
@@ -181,7 +190,8 @@ def run_ingest(
         is_video = _is_video_file(filename)
         st = StageTimer()
 
-        job_store[job_id]["config"] = get_config_snapshot()
+        snapshot = attach_config_to_run(source)
+        job_store[job_id]["config"] = snapshot
 
         job_store[job_id]["status"] = "transcribing"
         segments, audio_extract_ms, transcribe_ms = _trace_transcribe(
@@ -197,7 +207,7 @@ def run_ingest(
             filename=filename,
             file_type="video" if is_video else "audio",
             duration=duration,
-            metadata={"provider": get_stage_config().transcription.provider},
+            metadata={"source": source, "config": snapshot},
             full_transcript=full_transcript,
             file_path=file_path,
         )

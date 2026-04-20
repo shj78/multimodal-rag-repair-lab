@@ -20,6 +20,11 @@ from app.config import CONFIG, get_stage_config
 
 from evals._common import save_fixture, timer
 
+# evals 경로에서 _trace_* helper를 root로 부를 때 LangSmith run에 주입할 공통 표식.
+# run_qa/run_ingest는 source 인자로 동일 효과를 보지만, _trace_*는 시그니처 변경을
+# 피하려고 langsmith_extra(metadata+tags)로 대체한다.
+_EVALS_TRACE_EXTRA = {"metadata": {"source": "evals"}, "tags": ["evals"]}
+
 # ── transcribe ──
 
 
@@ -44,7 +49,8 @@ def run_transcribe(
     print("[transcribe] 전사 stage 실행 중...")
     try:
         segments, audio_ms, transcribe_ms = _trace_transcribe(
-            source_path, temp_media_id, is_video=True
+            source_path, temp_media_id, is_video=True,
+            langsmith_extra=_EVALS_TRACE_EXTRA,
         )
     finally:
         if os.path.exists(audio_path):
@@ -91,7 +97,10 @@ def run_vision(
 
     print("[vision] 비전 stage 실행 중...")
     try:
-        frame_analyses, vision_ms = _trace_vision(source_path, temp_media_id)
+        frame_analyses, vision_ms = _trace_vision(
+            source_path, temp_media_id,
+            langsmith_extra=_EVALS_TRACE_EXTRA,
+        )
     finally:
         if os.path.exists(frames_dir):
             shutil.rmtree(frames_dir)
@@ -155,7 +164,10 @@ def run_embed_and_save(
         )
 
         print(f"[embed] 청킹·임베딩 중... (media_id={media_id})")
-        chunks, embed_ms = _trace_embed(media_id, segments, frame_analyses)
+        chunks, embed_ms = _trace_embed(
+            media_id, segments, frame_analyses,
+            langsmith_extra=_EVALS_TRACE_EXTRA,
+        )
 
         update_media_status(media_id, "ready", segment_count=len(chunks))
 
@@ -199,7 +211,7 @@ def run_qa(
         for i, q in enumerate(questions, 1):
             query = q["query"]
             with timer() as t_question:
-                result = _pipeline_run_qa(query, media_id)
+                result = _pipeline_run_qa(query, media_id, source="evals")
                 all_candidates = result["all_segments"]
                 accepted = result["accepted"]
                 answer = result["answer"]

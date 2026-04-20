@@ -49,7 +49,7 @@ from ..supabase_utils import (
 )
 
 _VIDEO_EXTS = {"mp4", "mov", "avi", "mkv", "webm"}
-_VISION_CONCURRENCY = 4  # OpenAI Vision API rate limit 대비 동시 실행 수
+_VISION_CONCURRENCY = 2  # OpenAI Vision API rate limit 대비 동시 실행 수
 
 
 def _is_video_file(filename: str) -> bool:
@@ -243,9 +243,9 @@ def run_ingest(
 
     except OpenAIAuthError:
         job_store[job_id]["status"] = "failed"
-        job_store[job_id][
-            "error"
-        ] = "OpenAI API 키가 유효하지 않습니다. OPENAI_API_KEY를 확인하세요."
+        job_store[job_id]["error"] = (
+            "OpenAI API 키가 유효하지 않습니다. OPENAI_API_KEY를 확인하세요."
+        )
         try:
             update_media_status(media_id, "failed")
         except Exception:

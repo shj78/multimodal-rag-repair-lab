@@ -180,3 +180,4 @@ project-root/
 > 같은 실수가 2회 반복되면 위의 규칙이나 냄새 신호로 승격한다.
 
 - **provider 유령 필드** (Delta-03): 역할별 provider 5개로 분리했지만 기존 `Config.provider` 필드를 제거하지 않아 `embedding_dim`이 잘못된 provider를 참조. snapshot의 `is_local`도 transcription provider 하나로 전체 stage를 판단하는 버그 발생. → provider 제거, embedding_dim을 모델 기준으로 수정, snapshot stage별 provider로 전환.
+- **LangSmith orphan root** (Delta-03): `@traceable`이 붙은 `analyze_frame_with_vision_model`을 `ThreadPoolExecutor` 워커에서 호출했는데, 워커 스레드가 메인의 contextvars를 상속하지 않아 부모 run(`ingest.vision`)을 못 찾고 각 호출이 독립 루트로 찍힘. `ingest.vision` 465s인데 자식은 `ingest.3_extract_frames` 6s만 보이는 459s 갭으로 발견. → `get_current_run_tree()`로 메인에서 부모 캡처 후 각 워커 호출에 `langsmith_extra={"parent": parent_run}`로 명시 전달.

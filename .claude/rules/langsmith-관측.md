@@ -221,6 +221,7 @@ ingest.request             [chain]
 - Cohere/OpenAI 외부 호출이 `@traceable` 없이 숨어 있다 → §4 관찰 가치 검토
 - `llm`이 아닌 run에 `chat.completions`가 들어가 있다 → run_type 오분류, §3 재확인
 - 루트 run 없이 말단만 찍힌 고아 run이 보인다 → 호출자에 부모 `@traceable` 없음 (§8 참조)
+- `@traceable` 함수를 `ThreadPoolExecutor`/`ProcessPoolExecutor` 워커에서 호출한다 → 워커 스레드는 메인의 contextvars를 자동 상속하지 않아 부모 run을 못 찾고 자식이 orphan root로 빠짐. chain(`ingest.vision` 등)의 총 시간은 정상이지만 자식 run이 비어 보이는 갭으로 감지된다. 메인에서 `get_current_run_tree()`로 부모를 캡처해 각 워커 호출에 `langsmith_extra={"parent": parent_run}`로 명시 전달 (사례: `ingest_pipeline._analyze_frames_parallel`)
 
 ---
 

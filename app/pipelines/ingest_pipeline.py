@@ -25,6 +25,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Tuple
 
 from langsmith import traceable
+from langsmith.run_helpers import get_current_run_tree
 from openai import AuthenticationError as OpenAIAuthError
 
 from ..config import CONFIG, get_stage_config
@@ -75,9 +76,17 @@ def _analyze_frames_parallel(frames: List[Dict[str, Any]], cfg) -> List[Dict[str
     if not frames:
         return []
 
+    # ThreadPoolExecutor 워커 스레드는 메인 스레드의 contextvars를 상속하지 않으므로
+    # LangSmith 부모 run을 명시적으로 전달해야 ingest.4_analyze_frame이 orphan root로
+    # 찍히지 않고 ingest.vision 아래 자식 run으로 붙는다.
+    parent_run = get_current_run_tree()
+
     def _analyze_one(frame):
         description = analyze_frame_with_vision_model(
-            frame["frame_path"], frame["timestamp"], cfg=cfg
+            frame["frame_path"],
+            frame["timestamp"],
+            cfg=cfg,
+            langsmith_extra={"parent": parent_run},
         )
         return {"timestamp": frame["timestamp"], "description": description}
 

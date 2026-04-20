@@ -144,6 +144,81 @@ def save_segment(
     return response.data
 
 
+def update_segment_speaker(
+    media_id: str, chunk_index: int, speaker_id: str
+) -> None:
+    try:
+        (
+            _ensure_client()
+            .table("media_segments")
+            .update({"speaker_id": speaker_id})
+            .eq("media_id", media_id)
+            .eq("chunk_index", chunk_index)
+            .execute()
+        )
+    except SupabaseOperationError:
+        raise
+    except Exception as e:
+        _handle_supabase_error(e, "update_segment_speaker")
+
+
+def update_media_metadata(media_id: str, patch: Dict[str, Any]) -> Dict[str, Any]:
+    # media_files.metadata는 JSONB. 기존 값과 머지해 다른 키를 보존한다.
+    current = get_media_by_id(media_id) or {}
+    merged = {**(current.get("metadata") or {}), **patch}
+    try:
+        (
+            _ensure_client()
+            .table("media_files")
+            .update({"metadata": merged})
+            .eq("id", media_id)
+            .execute()
+        )
+    except SupabaseOperationError:
+        raise
+    except Exception as e:
+        _handle_supabase_error(e, "update_media_metadata")
+    return merged
+
+
+def get_media_speakers(media_id: str) -> List[str]:
+    # 문서 레벨 메타데이터(media_files.metadata.speakers)에서 조회.
+    # 청크 레벨 speaker_id 컬럼은 각 발화 표시용으로 별도 유지.
+    media = get_media_by_id(media_id)
+    if not media:
+        return []
+    metadata = media.get("metadata") or {}
+    speakers = metadata.get("speakers")
+    if not isinstance(speakers, list):
+        return []
+    return [s for s in speakers if isinstance(s, str) and s]
+
+
+def get_speakers_by_chunks(
+    media_id: str, chunk_indices: List[int]
+) -> Dict[int, Optional[str]]:
+    # match_segments RPC는 speaker_id를 반환하지 않는다 (RPC 미수정 결정).
+    # 검색 결과에 speaker_id를 enrich하려면 이 후속 조회가 필요하다.
+    if not chunk_indices:
+        return {}
+    try:
+        response = (
+            _ensure_client()
+            .table("media_segments")
+            .select("chunk_index, speaker_id")
+            .eq("media_id", media_id)
+            .in_("chunk_index", list(chunk_indices))
+            .execute()
+        )
+    except SupabaseOperationError:
+        raise
+    except Exception as e:
+        _handle_supabase_error(e, "get_speakers_by_chunks")
+
+    rows = response.data or []
+    return {r["chunk_index"]: r.get("speaker_id") for r in rows}
+
+
 @traceable(name="qa.2.1_vector_search", run_type="retriever")
 def search_similar_segments(
     query_embedding: List[float],

@@ -28,6 +28,7 @@ def segment_transcript(segments, cfg: EmbeddingCfg | None = None):
 **왜**: Python default는 정의 시점에 평가된다. CONFIG를 default에 넣으면 evals에서 override해도 원래 값이 사용되는 버그가 생긴다. Sprint 3에서 media_utils, retrieval_utils, supabase_utils에 이 패턴이 있었다.
 
 수정 대상:
+
 - `media_utils.py` — `segment_transcript()`, `get_text_embedding()`
 - `retrieval_utils.py` — `rerank_segments()`
 - `supabase_utils.py` — `search_similar_segments()`
@@ -39,14 +40,14 @@ def segment_transcript(segments, cfg: EmbeddingCfg | None = None):
 
 파이프라인 단계별 설정을 Pydantic BaseModel로 분리한다. 단위는 "knob이 함께 움직이는 범위" = stage.
 
-| Stage | Config | 파일 | 비고 |
-| --- | --- | --- | --- |
-| transcribe | TranscriptionCfg | transcription_utils.py | |
-| vision | VisionCfg | vision_utils.py | |
-| embedding | EmbeddingCfg | media_utils.py | |
-| retrieval | RetrievalCfg | retrieval_utils.py | |
-| qa | QACfg | chat_utils.py | |
-| judge | JudgeCfg | evaluation_utils.py | 1급 시민 — QA와 독립 |
+| Stage      | Config           | 파일                   | 비고                 |
+| ---------- | ---------------- | ---------------------- | -------------------- |
+| transcribe | TranscriptionCfg | transcription_utils.py |                      |
+| vision     | VisionCfg        | vision_utils.py        |                      |
+| embedding  | EmbeddingCfg     | media_utils.py         |                      |
+| retrieval  | RetrievalCfg     | retrieval_utils.py     |                      |
+| qa         | QACfg            | chat_utils.py          |                      |
+| judge      | JudgeCfg         | evaluation_utils.py    | 1급 시민 — QA와 독립 |
 
 - `.model_dump()` → snapshot 생성 (기록 = 실행 보장)
 - `.model_copy(update=...)` → override 시 사용
@@ -59,7 +60,7 @@ def segment_transcript(segments, cfg: EmbeddingCfg | None = None):
 ## Snapshot 단일화
 
 `app/snapshot.py`의 `get_config_snapshot()` + `get_prompt_snapshot()`가 단일 진실 공급원.
-diagnostics.py(런타임)와 evals/_common.py(CLI) 모두 이 함수를 import한다.
+diagnostics.py(런타임)와 evals/\_common.py(CLI) 모두 이 함수를 import한다.
 
 - 각 stage의 provider로 활성 모델을 개별 결정 (기존 `is_local` 단일 판단 제거)
 - snapshot 키는 stage별로 구성: `transcription_provider`, `vision_provider`, `embedding_provider`, `chat_provider`, `judge_provider`
@@ -78,6 +79,7 @@ with override_config(vision={"frames_per_minute": 6}):
 ```
 
 두 경로 공존:
+
 - **직접 실험** → config.py 수정 (기존 방식)
 - **AI 연속 실험** → override 블록 (config.py 안 건드림, 자동 복원)
 
@@ -89,13 +91,13 @@ with override_config(vision={"frames_per_minute": 6}):
 
 단일 `provider` 필드를 역할별 5개로 분리 완료. 기존 `Config.provider` 필드와 `PROVIDER` env var fallback은 제거됨.
 
-| stage | env var | Config 필드 |
-| --- | --- | --- |
+| stage         | env var               | Config 필드           |
+| ------------- | --------------------- | --------------------- |
 | transcription | `TRANSCRIBE_PROVIDER` | `transcribe_provider` |
-| vision | `VISION_PROVIDER` | `vision_provider` |
-| embedding | `EMBEDDING_PROVIDER` | `embedding_provider` |
-| qa | `CHAT_PROVIDER` | `chat_provider` |
-| judge | `JUDGE_PROVIDER` | `judge_provider` |
+| vision        | `VISION_PROVIDER`     | `vision_provider`     |
+| embedding     | `EMBEDDING_PROVIDER`  | `embedding_provider`  |
+| qa            | `CHAT_PROVIDER`       | `chat_provider`       |
+| judge         | `JUDGE_PROVIDER`      | `judge_provider`      |
 
 미설정 시 기본값은 `"local"`. `.env`와 Config 클래스 모두 stage별로 정리되어 있다.
 

@@ -5,6 +5,14 @@
 
 ---
 
+## 0. 현재 상태 (2026-04-20~)
+
+- **evals/ 동결**: 내부 버그로 `evals/`는 실행·호출·참조·수정 **모두 금지**. 데이터(`evals/results/`, `evals/fixtures/`, `evals/datasets/`)는 **보존**하되, 코드를 읽거나 문서에서 참조하지 않는다.
+- 실험이 필요하면 노트북/스크립트로 별도 진행하고 `evals/`는 건드리지 않는다.
+- 동결 해제 시 이 섹션을 삭제하고 아래 규칙의 evals 항목을 복원한다.
+
+---
+
 ## 1. 하네스 구조
 
 이 프로젝트의 하네스는 두 축으로 구성된다.
@@ -20,17 +28,17 @@ CLAUDE.md는 advisory다 (~80% 준수율). **반드시 지켜야 할 것은 hook
 | --------------------- | ---------------------------- | ----------------- |
 | `CLAUDE.md` (이 문서) | 프로젝트 전체 규칙           | 항상              |
 | `.claude/rules/*.md`  | 도메인별 규칙 (paths 조건부) | 해당 경로 작업 시 |
-| `evals/CLAUDE.md`     | 실험 자동화 특화             | evals/ 작업 시    |
 
 ### Guide 하위 문서
 
-| 파일                              | 대상 경로                    | 역할                                     |
-| --------------------------------- | ---------------------------- | ---------------------------------------- |
-| `.claude/rules/config-규약.md`    | `app/**`, `evals/_stages.py` | Stage Config, 호출 규약, Override        |
-| `.claude/rules/실험-프로토콜.md`  | `evals/**`, `experiments/**` | 실험 전후 프로토콜                       |
-| `.claude/rules/code-style.md`     | `app/**`, `evals/**`         | Fowler 리팩토링 기준 코드 품질           |
-| `.claude/rules/app-구조.md`       | `app/**`                     | route/pipeline/util 3층, 폴더·명명 규칙  |
-| `.claude/rules/langsmith-관측.md` | `app/**`                     | `@traceable` 이름·run_type·부착 규칙     |
+| 파일                              | 대상 경로     | 역할                                     |
+| --------------------------------- | ------------- | ---------------------------------------- |
+| `.claude/rules/config-규약.md`    | `app/**`      | Stage Config, 호출 규약, Override        |
+| `.claude/rules/code-style.md`     | `app/**`      | Fowler 리팩토링 기준 코드 품질           |
+| `.claude/rules/app-구조.md`       | `app/**`      | route/pipeline/util 3층, 폴더·명명 규칙  |
+| `.claude/rules/langsmith-관측.md` | `app/**`      | `@traceable` 이름·run_type·부착 규칙     |
+
+> `실험-프로토콜.md`는 `evals/` 동결 기간 동안 비활성. 동결 해제 시 복원.
 
 ### Sensor
 
@@ -72,7 +80,7 @@ CLAUDE.md는 advisory다 (~80% 준수율). **반드시 지켜야 할 것은 hook
 
 - API 키·시크릿을 코드에 하드코딩하지 않는다 → `.env`로만
 - 함수 시그니처에 `CONFIG.xxx`를 default로 넣지 않는다 → lazy lookup (`config-규약` 참조)
-- `evals/results/`의 JSON을 삭제하지 않는다 → 실험 이력
+- `evals/` 전체(코드·results·fixtures)를 삭제·수정하지 않는다 → 동결 중, 이력 보존
 - 프롬프트를 코드 본문에 하드코딩하지 않는다 → `app/prompts.py` 버전 관리
 - 동작 변경과 리팩토링을 한 커밋에 섞지 않는다
 - `print()`로 디버깅하지 않는다 → `logging` 사용
@@ -83,8 +91,7 @@ CLAUDE.md는 advisory다 (~80% 준수율). **반드시 지켜야 할 것은 hook
 
 ### 프로젝트 공통
 
-1. **app/ 수정 시 evals/ 확인** — 함수 시그니처·반환값·config 키가 바뀌면 evals/의 호출부·스냅샷이 깨질 수 있다. 역방향도 동일.
-2. **환경 복원** — 실험용으로 변경한 config, .env, prompts는 작업 완료 후 baseline으로 되돌린다.
+1. **환경 복원** — 실험용으로 변경한 config, .env, prompts는 작업 완료 후 baseline으로 되돌린다.
 
 ### Hook 승격 후보
 
@@ -102,7 +109,6 @@ CLAUDE.md는 advisory다 (~80% 준수율). **반드시 지켜야 할 것은 hook
 
 아래 상황이 보이면 멈추고 확인한다.
 
-- app/ 함수 시그니처를 바꿨는데 evals/ 쪽을 안 봤다 → **의존성 깨짐**
 - 같은 작업을 두 번 했는데 결과가 다르다 → **환경 오염** (.env drift, config 미복원)
 - 변경의 이유를 한 문장으로 설명할 수 없다 → **맥락 누락**
 - 매직 넘버가 코드에 반복된다 → **상수 추출 필요** (code-style 참조)
@@ -117,7 +123,7 @@ CLAUDE.md는 advisory다 (~80% 준수율). **반드시 지켜야 할 것은 hook
 ### 작업 전
 
 - 이 작업에 필요한 맥락과 파일을 충분히 봤는가?
-- 이 작업의 영향 범위가 어디까지인가? (app만? evals도? config도?)
+- 이 작업의 영향 범위가 어디까지인가? (app만? config도?)
 - 현재 환경(config, .env)이 의도한 상태인가?
 
 ### 작업 중
@@ -155,8 +161,7 @@ project-root/
 │   ├── config.py
 │   ├── prompts.py
 │   └── ...
-├── evals/                      # 실험 자동화
-│   ├── CLAUDE.md               # 실험 특화 규칙
+├── evals/                      # 실험 자동화 (동결 — 참조·수정 금지)
 │   └── ...
 ├── experiments/                # 실험 리포트
 └── docs/

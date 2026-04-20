@@ -77,11 +77,15 @@ def _rank_candidates(
     candidates: List[Dict[str, Any]],
     query: str,
     cfg: RetrievalCfg,
+    speakers: List[str] | None = None,
 ) -> List[Dict[str, Any]]:
     """검색 결과 후보를 rerank 또는 threshold로 선별한다.
 
     cfg.use_rerank로 분기한다. 이전엔 rerank는 retrieval_utils, threshold는
     supabase_utils에 흩어져 있었지만 "선별"이라는 동일 관심사를 한 함수로 통합.
+
+    speakers는 화자 인지 rerank 프롬프트(v2-speaker)에 주입된다. Cohere
+    경로는 speakers를 사용하지 않는다 (cross-encoder에 메타데이터 주입 불가).
 
     LangSmith trace에는 mode metadata로 분기를 노출 — UI에서 rerank/threshold
     경로를 한 run 이름(candidate_ranking) 안에서 비교할 수 있도록.
@@ -99,7 +103,9 @@ def _rank_candidates(
         if cfg.rerank_provider == "llm":
             from .llm_rerank import llm_rerank_segments
 
-            return llm_rerank_segments(query, candidates, cfg=cfg)
+            return llm_rerank_segments(
+                query, candidates, speakers=speakers, cfg=cfg
+            )
         return rerank_segments(query, candidates, cfg=cfg)
 
     if run is not None:
@@ -215,14 +221,36 @@ def _hybrid_search(
     return fused
 
 
+def _enrich_with_speakers(
+    segments: List[Dict[str, Any]], media_id: str
+) -> None:
+    # rerank 이전에 호출해야 rerank 프롬프트에서도 speaker_id 참조 가능.
+    # 미디어에 화자 라벨이 없을 때는 caller에서 skip하는 것이 정답.
+    # 여기서 호출되면 "라벨이 있다"가 전제.
+    from ..supabase_utils import get_speakers_by_chunks
+
+    chunk_indices = [
+        s["chunk_index"] for s in segments if s.get("chunk_index") is not None
+    ]
+    if not chunk_indices:
+        return
+    speaker_map = get_speakers_by_chunks(media_id, chunk_indices)
+    for seg in segments:
+        seg["speaker_id"] = speaker_map.get(seg.get("chunk_index"))
+
+
 def retrieve_segments(
     query: str,
     query_embedding: List[float],
     media_id: str,
     cfg: RetrievalCfg | None = None,
+    speakers: List[str] | None = None,
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     검색 → 선별(rerank/threshold) → accepted 마킹까지 한번에 처리.
+
+    speakers는 화자 인지 rerank 프롬프트용 메타데이터. 미지정 시 rerank는
+    speaker 단서 없이 동작한다.
 
     Returns:
         (all_segments, accepted_segments)
@@ -233,7 +261,16 @@ def retrieve_segments(
 
     all_segments = _hybrid_search(query, query_embedding, media_id, cfg)
 
-    accepted_segments = _rank_candidates(all_segments, query, cfg)
+    # speaker enrich은 미디어에 화자 라벨이 있을 때만 의미 있다. 라벨이
+    # 없으면 get_speakers_by_chunks가 전부 None을 반환하므로 DB 쿼리가
+    # 낭비된다. qa_pipeline이 미디어 메타데이터에서 speakers를 이미
+    # 가져왔고, 빈 리스트면 라벨 미부여 미디어 → skip.
+    if speakers:
+        _enrich_with_speakers(all_segments, media_id)
+
+    accepted_segments = _rank_candidates(
+        all_segments, query, cfg, speakers=speakers
+    )
 
     # accepted 마킹 (응답/결과 JSON의 sources에서 선별 여부 표시)
     # rerank은 .copy()된 객체를 반환하므로 id()가 아닌 chunk_index로 비교

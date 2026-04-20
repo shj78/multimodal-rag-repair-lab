@@ -53,6 +53,31 @@ def run_qa(
     attach_config_to_run(source)
     latency_ms: Dict[str, int] = {}
 
+    # speakers는 화자 인지 프롬프트(v2-speaker)용 메타데이터. HyDE·rerank 중
+    # 어느 쪽이든 {speaker_intro}를 쓰는 템플릿을 사용할 때만 조회한다.
+    # 어느 쪽도 안 쓰면 DB 호출 스킵 (baseline v1 경로엔 오버헤드 없음).
+    from ..prompts import (
+        hyde_prompt_uses_speakers,
+        llm_rerank_prompt_uses_speakers,
+    )
+
+    hyde_wants_speakers = (
+        cfg.retrieval.use_hyde
+        and hyde_prompt_uses_speakers(cfg.retrieval.hyde_prompt_version)
+    )
+    rerank_wants_speakers = (
+        cfg.retrieval.use_rerank
+        and cfg.retrieval.rerank_provider == "llm"
+        and llm_rerank_prompt_uses_speakers(
+            cfg.retrieval.llm_rerank_prompt_version
+        )
+    )
+    speakers: list[str] = []
+    if hyde_wants_speakers or rerank_wants_speakers:
+        from ..supabase_utils import get_media_speakers
+
+        speakers = get_media_speakers(media_id)
+
     # HyDE: 쿼리를 임베딩용 "가상 답변"으로 변형 (use_hyde=True일 때)
     # BM25/rerank는 원 쿼리를 계속 사용한다 (희귀 토큰 매칭·semantic rerank 유지).
     embed_input = query
@@ -60,6 +85,7 @@ def run_qa(
         with timer() as t_hyde:
             embed_input = generate_hypothetical_answer(
                 query,
+                speakers=speakers,
                 retrieval_cfg=cfg.retrieval,
                 qa_cfg=cfg.qa,
             )
@@ -71,7 +97,7 @@ def run_qa(
 
     with timer() as t_retrieve:
         all_segments, accepted = run_retrieve(
-            query, query_embedding, media_id, cfg
+            query, query_embedding, media_id, cfg, speakers=speakers
         )
     latency_ms["retrieval"] = t_retrieve()
 
@@ -107,7 +133,13 @@ def run_retrieve(
     query_embedding,
     media_id: str,
     cfg: PipelineConfig,
+    speakers: Optional[list] = None,
 ):
-    """검색 + 선별 단계를 trace의 child run으로 노출한다."""
+    """검색 + 선별 단계를 trace의 child run으로 노출한다.
+
+    speakers는 화자 인지 rerank 프롬프트로 전달된다.
+    """
     attach_stage_cfg_to_run("retrieval", cfg.retrieval)
-    return retrieve_segments(query, query_embedding, media_id, cfg=cfg.retrieval)
+    return retrieve_segments(
+        query, query_embedding, media_id, cfg=cfg.retrieval, speakers=speakers
+    )

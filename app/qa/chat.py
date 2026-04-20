@@ -10,7 +10,9 @@ from ..prompts import get_qa_system_prompt
 def get_answer_by_chat_model(query, similar_segments, cfg: QACfg | None = None):
     cfg = cfg or get_stage_config().qa
     context_text = "\n".join(
-        f"[{seg['start_time']:.0f}s] {seg['text']}"
+        f"[{seg['start_time']:.0f}s] "
+        + (f"({seg['speaker_id']}) " if seg.get("speaker_id") else "")
+        + seg["text"]
         + (
             f"\n[비전] {seg['frame_description']}"
             if seg.get("frame_description")

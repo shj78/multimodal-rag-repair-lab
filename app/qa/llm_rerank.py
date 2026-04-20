@@ -31,7 +31,11 @@ _CHUNK_TEXT_LIMIT = 200
 
 
 def _format_candidates(segments: List[Dict[str, Any]]) -> str:
-    """LLM 프롬프트에 넣을 후보 리스트 문자열을 만든다."""
+    """LLM 프롬프트에 넣을 후보 리스트 문자열을 만든다.
+
+    speaker_id가 enrich돼 있으면 "(speaker=..., start=Xs)" 형태로 포함한다.
+    v2-speaker 프롬프트가 이 형식을 전제로 질문-화자 매칭을 수행한다.
+    """
     lines = []
     for seg in segments:
         idx = seg.get("chunk_index")
@@ -39,7 +43,13 @@ def _format_candidates(segments: List[Dict[str, Any]]) -> str:
         text = (seg.get("text") or "").strip().replace("\n", " ")
         if len(text) > _CHUNK_TEXT_LIMIT:
             text = text[:_CHUNK_TEXT_LIMIT] + "…"
-        lines.append(f"[{idx}] (start={start:.0f}s) {text}")
+        speaker = seg.get("speaker_id")
+        meta = (
+            f"speaker={speaker}, start={start:.0f}s"
+            if speaker
+            else f"start={start:.0f}s"
+        )
+        lines.append(f"[{idx}] ({meta}) {text}")
     return "\n".join(lines)
 
 
@@ -69,10 +79,14 @@ def _parse_ranked_indices(raw: str) -> Optional[List[int]]:
 def llm_rerank_segments(
     query: str,
     segments: List[Dict[str, Any]],
+    speakers: Optional[List[str]] = None,
     cfg: Optional[RetrievalCfg] = None,
     qa_cfg: Optional[QACfg] = None,
 ) -> List[Dict[str, Any]]:
     """segments를 listwise LLM rerank로 재정렬해 상위 rerank_top_k개를 반환.
+
+    speakers는 화자 인지 템플릿(v2-speaker)에 메타데이터로 주입된다.
+    템플릿이 speakers를 쓰지 않으면 무시된다.
 
     실패 시 입력 순서 그대로 top_k를 반환한다 (fallback).
     """
@@ -90,6 +104,7 @@ def llm_rerank_segments(
         query=query,
         candidates=candidates_text,
         top_k=top_k,
+        speakers=speakers,
         version=cfg.llm_rerank_prompt_version,
     )
     print(

@@ -10,7 +10,7 @@ BM25는 원 쿼리를 그대로 써야 희귀 토큰 매칭이 살아남는다 (
 """
 
 import time
-from typing import Optional
+from typing import List, Optional
 
 import requests
 from langsmith import traceable
@@ -22,15 +22,22 @@ from ..prompts import get_hyde_prompt
 @traceable(name="qa.0_hyde", run_type="llm")
 def generate_hypothetical_answer(
     query: str,
+    speakers: Optional[List[str]] = None,
     retrieval_cfg: Optional[RetrievalCfg] = None,
     qa_cfg: Optional[QACfg] = None,
 ) -> str:
-    """쿼리에 대한 가상 답변을 생성한다. LLM 실패 시 원 쿼리를 반환 (fallback)."""
+    """쿼리에 대한 가상 답변을 생성한다. LLM 실패 시 원 쿼리를 반환 (fallback).
+
+    speakers는 화자 인지 템플릿(v2-speaker 등)에 메타데이터로 주입된다.
+    템플릿이 speakers를 쓰지 않으면 무시된다.
+    """
     stage = get_stage_config()
     retrieval_cfg = retrieval_cfg or stage.retrieval
     qa_cfg = qa_cfg or stage.qa
 
-    prompt = get_hyde_prompt(query, version=retrieval_cfg.hyde_prompt_version)
+    prompt = get_hyde_prompt(
+        query, speakers=speakers, version=retrieval_cfg.hyde_prompt_version
+    )
     messages = [{"role": "user", "content": prompt}]
     print(f"[hyde] query={query!r} prompt_version={retrieval_cfg.hyde_prompt_version}")
 

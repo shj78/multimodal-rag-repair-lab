@@ -87,7 +87,9 @@ class Config:
     rerank_model: str = os.getenv("RERANK_MODEL", "rerank-multilingual-v3.0")
     rerank_top_k: int = 3
     rerank_pool_size: int = 15
-    llm_rerank_prompt_version: str = os.getenv("LLM_RERANK_PROMPT_VERSION", "v1")
+    llm_rerank_prompt_version: str = os.getenv(
+        "LLM_RERANK_PROMPT_VERSION", "v2-speaker"
+    )
 
     # ── Hybrid Retrieval (BM25 + vector) ──
     use_hybrid: bool = os.getenv("USE_HYBRID", "true").lower() == "true"
@@ -96,7 +98,7 @@ class Config:
 
     # ── HyDE (Hypothetical Document Embeddings) ──
     use_hyde: bool = os.getenv("USE_HYDE", "true").lower() == "true"
-    hyde_prompt_version: str = os.getenv("HYDE_PROMPT_VERSION", "v1")
+    hyde_prompt_version: str = os.getenv("HYDE_PROMPT_VERSION", "v2-speaker")
 
     # ── Supabase ──
     supabase_url: str = os.getenv("SUPABASE_URL", "")
@@ -174,12 +176,12 @@ class RetrievalCfg(BaseModel):
     rerank_top_k: int
     rerank_pool_size: int
     cohere_api_key: str = ""
-    llm_rerank_prompt_version: str = "v1"
+    llm_rerank_prompt_version: str = "v2-speaker"
     use_hybrid: bool = True
     hybrid_rrf_k: int = 60
     hybrid_bm25_top_k: int = 30
     use_hyde: bool = True
-    hyde_prompt_version: str = "v1"
+    hyde_prompt_version: str = "v2-speaker"
 
 
 class QACfg(BaseModel):

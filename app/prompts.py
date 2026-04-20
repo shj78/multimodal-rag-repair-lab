@@ -235,9 +235,27 @@ HYDE_PROMPTS = {
         "- 답변만 출력 (설명 없이)\n\n"
         "질문: {query}"
     ),
+    # v2-speaker: 다인 대담 특화. 화자 목록은 런타임에 메타데이터에서 주입.
+    # 청크 embedding은 speaker prefix 없이 저장돼 있으므로 가상 답변 본문에도
+    # 화자명을 넣지 않는다(노이즈 방지). 말투·어휘로만 화자·감정 단서를 반영.
+    "v2-speaker": (
+        "{speaker_intro}\n"
+        "아래 질문에 대해, 실제 영상 내용은 모르지만 "
+        "이 질문에 답이 될 법한 짧은 가상 발화를 한두 문장으로 작성하세요.\n\n"
+        "규칙:\n"
+        "- 자연스러운 구어체 발화로 작성 (질문 반복 금지)\n"
+        "- 질문이 특정 화자를 이름으로 언급하면, 그 화자가 직접 말하는 "
+        "것처럼 1인칭 발화로 생성\n"
+        "- '격앙/단호/확신/강한 주장' 같은 감정 단서가 질문에 있으면 그에 "
+        "어울리는 어휘·어미를 사용 (예: '진짜', '정말', '절대', '너무', '!')\n"
+        "- 화자명 자체를 발화 본문에 적지 마세요. 말투로만 드러냅니다.\n"
+        "- 구체적인 장면·상황을 자유롭게 가정해 포함 가능\n"
+        "- 답변만 출력 (설명 없이)\n\n"
+        "질문: {query}"
+    ),
 }
 
-CURRENT_HYDE_VERSION = "v1"
+CURRENT_HYDE_VERSION = "v2-speaker"
 
 
 # ── LLM Rerank 프롬프트 ──
@@ -260,9 +278,33 @@ LLM_RERANK_PROMPTS = {
         "응답은 반드시 아래 JSON 형식으로만 출력하세요.\n"
         '{{"ranked_indices": [chunk_index 숫자 배열, 길이 {top_k}]}}'
     ),
+    # v2-speaker: 다인 대담 특화. 각 후보 청크의 speaker_id가 candidates에
+    # "(speaker=...)" 형태로 주입되는 것을 전제로, "질문이 특정 화자를
+    # 지목하면 그 화자 청크를 우선한다"는 규칙을 추가.
+    "v2-speaker": (
+        "{speaker_intro}\n"
+        "당신은 영상 QA용 검색 결과 rerank 전문가입니다.\n"
+        "아래 질문에 대해 각 후보 청크의 관련성을 평가하고, "
+        "관련성이 가장 높은 상위 {top_k}개의 chunk_index를 순서대로 반환하세요.\n\n"
+        "판단 기준:\n"
+        "- 청크가 질문에 답할 정보(또는 일부)를 담고 있으면 관련 있음\n"
+        "- 질문이 특정 화자를 이름으로 지목하면(예: '○○이 말한', '○○의 의견') "
+        "해당 speaker의 청크를 우선한다. 단, 다른 화자 청크에 정답이 명백히 있으면 "
+        "함께 포함 가능\n"
+        "- 질문에 '격앙/단호/확신/주장' 같은 감정 단서가 있으면, 말투·어휘가 "
+        "그와 부합하는 청크를 상위로\n"
+        "- 주인공 이름과 청크의 지시어(그 녀석/이 아이 등)가 같은 대상을 가리킨다고 "
+        "맥락상 추론되면 동일 개체로 간주\n"
+        "- 질문의 시점·장소·상황을 설명하는 도입부/배경 청크도 관련 있음\n\n"
+        "질문: {query}\n\n"
+        "후보 청크 (각 줄 형식: [chunk_index] (speaker=화자, start=초) 텍스트):\n"
+        "{candidates}\n\n"
+        "응답은 반드시 아래 JSON 형식으로만 출력하세요.\n"
+        '{{"ranked_indices": [chunk_index 숫자 배열, 길이 {top_k}]}}'
+    ),
 }
 
-CURRENT_LLM_RERANK_VERSION = "v1"
+CURRENT_LLM_RERANK_VERSION = "v2-speaker"
 
 
 # ── 평가 프롬프트 (LLM-as-Judge) ──
@@ -466,22 +508,73 @@ def get_qa_system_prompt(version: str = None) -> str:
     return QA_SYSTEM_PROMPTS[v]
 
 
-def get_hyde_prompt(query: str, version: str = None) -> str:
-    """버전에 해당하는 HyDE 프롬프트에 query를 채워 반환한다."""
+def get_hyde_prompt(
+    query: str,
+    speakers: list[str] | None = None,
+    version: str = None,
+) -> str:
+    """버전에 해당하는 HyDE 프롬프트에 query·speakers를 채워 반환한다.
+
+    speakers는 v2-speaker 같은 화자 인지 템플릿용 메타데이터. 템플릿에
+    {speaker_intro} placeholder가 없으면 speakers는 무시된다.
+    """
     v = version or CURRENT_HYDE_VERSION
     template = HYDE_PROMPTS[v]
+    if "{speaker_intro}" in template:
+        if speakers:
+            intro = (
+                f"이 영상은 {len(speakers)}명({', '.join(speakers)})이 "
+                "나누는 대담입니다."
+            )
+        else:
+            intro = "이 영상은 여러 화자가 등장하는 대담입니다."
+        return template.format(query=query, speaker_intro=intro)
     return template.format(query=query)
 
 
+def hyde_prompt_uses_speakers(version: str | None = None) -> bool:
+    """HyDE 프롬프트 템플릿이 {speaker_intro}를 사용하는지 여부."""
+    v = version or CURRENT_HYDE_VERSION
+    return "{speaker_intro}" in HYDE_PROMPTS[v]
+
+
+def llm_rerank_prompt_uses_speakers(version: str | None = None) -> bool:
+    """LLM Rerank 프롬프트 템플릿이 {speaker_intro}를 사용하는지 여부."""
+    v = version or CURRENT_LLM_RERANK_VERSION
+    return "{speaker_intro}" in LLM_RERANK_PROMPTS[v]
+
+
 def get_llm_rerank_prompt(
-    query: str, candidates: str, top_k: int, version: str = None
+    query: str,
+    candidates: str,
+    top_k: int,
+    speakers: list[str] | None = None,
+    version: str = None,
 ) -> str:
     """버전에 해당하는 LLM Rerank 프롬프트를 완성해 반환한다.
 
-    candidates는 "[idx] (start=Xs) 텍스트" 형태의 여러 줄 문자열.
+    candidates는 "[idx] (start=Xs) 텍스트" 또는 v2-speaker일 경우
+    "[idx] (speaker=화자, start=Xs) 텍스트" 형태의 여러 줄 문자열.
+
+    speakers는 v2-speaker 같은 화자 인지 템플릿용 메타데이터. 템플릿에
+    {speaker_intro} placeholder가 없으면 speakers는 무시된다.
     """
     v = version or CURRENT_LLM_RERANK_VERSION
     template = LLM_RERANK_PROMPTS[v]
+    if "{speaker_intro}" in template:
+        if speakers:
+            intro = (
+                f"이 영상은 {len(speakers)}명({', '.join(speakers)})이 "
+                "나누는 대담입니다."
+            )
+        else:
+            intro = "이 영상은 여러 화자가 등장하는 대담입니다."
+        return template.format(
+            query=query,
+            candidates=candidates,
+            top_k=top_k,
+            speaker_intro=intro,
+        )
     return template.format(query=query, candidates=candidates, top_k=top_k)
 
 

@@ -364,7 +364,12 @@ function MetricGlossary() {
 }
 
 function DetailMedia({ experiment }: { experiment: Experiment }) {
-  if (!experiment.media) {
+  const shouldRenderMedia =
+    Boolean(experiment.media) &&
+    process.env.NODE_ENV !== "production" &&
+    process.env.NEXT_PUBLIC_DEMO_MEDIA !== "disabled";
+
+  if (!shouldRenderMedia || !experiment.media) {
     return <Artwork experiment={experiment} detail />;
   }
 
@@ -394,15 +399,20 @@ function DetailMedia({ experiment }: { experiment: Experiment }) {
 }
 
 function DetailSidebar({ experiment }: { experiment: Experiment }) {
+  const shouldRenderMedia =
+    Boolean(experiment.media) &&
+    process.env.NODE_ENV !== "production" &&
+    process.env.NEXT_PUBLIC_DEMO_MEDIA !== "disabled";
+
   return (
     <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">
       <div className="glass-panel p-4 md:p-5">
         <DetailMedia experiment={experiment} />
 
         <div className="mt-5 flex flex-wrap gap-2">
-          {!experiment.media && <span className="pill">{experiment.dataset}</span>}
+          {!shouldRenderMedia && <span className="pill">{experiment.dataset}</span>}
           <span className="pill">{experiment.duration}</span>
-          {!experiment.media && <span className="pill">{experiment.artifact}</span>}
+          {!shouldRenderMedia && <span className="pill">{experiment.artifact}</span>}
         </div>
 
         <h1 className="mt-5 text-3xl font-semibold tracking-[-0.04em] text-white md:text-4xl">

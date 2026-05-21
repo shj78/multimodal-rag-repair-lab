@@ -1,175 +1,122 @@
-<p align="center">
-  <img src="./assets/sprint4-header.png" width="100%">
-</p>
+# Multimodal RAG Failure Repair Lab
 
-# AI 파이프라인 고도화
+영상 기반 QA 시스템에서 실제로 깨지는 지점을 추적하고, 검색 파이프라인과 메타데이터 설계를 고쳐 답변 품질을 복원한 실험 기록입니다.
 
-> "파라미터 튜닝을 넘어, 아키텍처를 고친다."
+이 레포는 Sprint 4 과정 산출물을 포트폴리오 형태로 정리한 것입니다. 단순히 모델을 바꾸는 대신, ASR, vision, correction, chunking, retrieval, rerank, QA context 중 어느 레이어에서 문제가 생겼는지 분리해서 확인했습니다.
 
-이번 스프린트는 스프린트 2 (RAG) 또는 스프린트 3 (멀티모달) 프로젝트를 **실 서비스 수준으로 고도화**하는 것이 목표입니다. 기존 스프린트에서 발견했지만 해결하지 못한 **엣지 케이스**를 체계적으로 분석하고, 아키텍처 레벨의 개선을 통해 서비스 품질을 높입니다.
+## Portfolio Cases
 
-<br>
+| Case | Problem | Fix | Result |
+| --- | --- | --- | --- |
+| `print()` Multimodal Parse | 화면에는 `print()`가 있지만 QA가 내장 함수 목록에서 누락 | Whisper prompt, vision-guided correction, gpt-5.4 frame analysis 비교 | 핵심 질문에서 4/5 함수 복원 -> 5/5 함수 복원 |
+| CCTV Visual QA | 짧은 블랙박스 영상에서 음성보다 화면 장면이 답변 근거가 됨 | v6-scene vision prompt와 timestamped context로 장면 근거 저장 | 인물 접근 장면을 grounded answer로 복원 |
+| Speaker-Aware Movie Debate | 39분 토론에서 "누가 말했는가"가 검색 결과에서 사라짐 | `speaker_id` schema, speaker metadata, HyDE/rerank/context speaker integration | "맥빠지는 느낌" 발화자를 허키로 정정 |
 
-## 학습 목표
+## Demo Site
 
-### 공통 (Track A/B 모두)
-
-- AI 시스템에서 "동작하는 것"과 "잘 동작하는 것"의 차이를 **수치로 증명**하는 방법을 익힌다
-- 파라미터 튜닝이 아닌 **컴포넌트 교체/추가**가 필요한 시점을 판단하는 능력을 기른다
-- **평가 시스템 자체의 결함**을 발견하고 수정하는 경험을 쌓는다 (지표를 맹신하지 않는 태도)
-- 타인의 코드베이스를 읽고 이해하여 **기여하는 실무 협업 경험**을 한다
-
-### Track A 전용
-
-- PDF를 텍스트가 아닌 구조화된 문서로 다루는 **문서 파싱 전략**(테이블·이미지)을 배운다
-- 키워드 검색과 시맨틱 검색의 실패 모드를 이해하고 **Hybrid Search로 보완**하는 방법을 구현한다
-- AI 시스템이 **모르는 것을 "모른다"고 말하게** 만드는 환각 방지 전략을 구현한다
-
-### Track B 전용
-
-- 영상의 **비음성 정보(화면 텍스트, 슬라이드, 코드)**를 VLM으로 추출하여 검색 가능하게 만드는 **멀티모달 처리 전략**을 배운다
-- STT 전사 텍스트의 **형태 불일치 문제**(숫자, 고유명사, 코드 스위칭)를 발견하고 **후처리 파이프라인**으로 해결한다
-- 고정 threshold의 구조적 한계를 이해하고 **동적 검색 전략**을 구현한다
-- LLM-as-Judge 평가 시스템의 역설을 발견하고 **공정한 평가 체계**로 개선한다
-
-<br>
-
-## 트랙 선택
-
-페어와 함께 **둘 중 하나**의 트랙을 선택합니다.
-
-| 질문 | Track A 선택 | Track B 선택 |
-|------|-------------|-------------|
-| 어떤 스프린트를 **고도화**하고 싶은가? | 스프린트 2 (RAG) | 스프린트 3 (멀티모달) |
-| 가장 아쉬웠던 것은? | PDF 표/이미지 인식 실패, 환각, 검색 품질 | 화면 정보 검색 불가, 전사 불일치, 검색 0건 |
-| 집중하고 싶은 영역은? | 문서 파싱 + 검색 전략 + 안전 응답 | 멀티모달 처리 + 검색 품질 + 평가 신뢰성 |
-
-> **페어 트랙 선택**: 새 페어가 서로 다른 트랙을 선호하는 경우, 둘이 합의하여 한 트랙을 선택합니다.
-
-<br>
-
-## 운영 원칙
-
-### 구현 위치
-
-코드 작업은 **스프린트 2 (RAG) 또는 스프린트 3 (멀티모달) 레포지토리**에서 자유롭게 진행합니다. 이 sprint-4 레포에는 **리포트와 데모만 제출**합니다. 코드를 스프린트 2/3 레포에 올릴 의무는 없습니다.
-
-### 배포
-
-**배포는 필수가 아닙니다.** 데모 영상에서 로컬 실행 결과를 보여주면 충분합니다.
-
-### 모듈 선택 규칙
-
-각 트랙에는 **4개 핵심 모듈 + 2개 선택 모듈**이 있습니다.
-
-> **완주 스토리란?**
-> 하나의 엣지 케이스를 선택하여, Before(현재 실패하는 상태)와 After(개선된 상태)를 **수치와 데모로 증명**하는 것입니다.
-
-이 중 **완주 스토리 1개를 선택**하여 Before/After를 데모할 수 있을 만큼 완성합니다. 추가 모듈 1개를 권장하되, 4개 전부를 구현할 필요는 없습니다.
-
-> 부분 구현만 여러 개보다, **1개 완주 스토리의 Before/After가 극적으로 보이는 것**이 훨씬 좋은 결과물입니다.
-
-### 비용 가이드
-
-| 항목 | 비용 |
-|------|------|
-| GPT-4o-mini 100회 Q&A | 약 $0.5~1 (실험 단계 권장) |
-| GPT-4o 100회 Q&A | 약 $5~10 (최종 비교 시에만 사용) |
-| VLM 프레임 분석 (로컬 gemma3) | 무료 |
-| GPT-4o Vision 프레임 | 프레임당 약 $0.01~0.03 |
-| **스프린트 전체 권장** | **$10 이내** |
-
-저비용 조합 예시: `bge-m3`(로컬 임베딩) + `gemma3`(로컬 VLM) + `gpt-4o-mini`(유료 채팅)
-
-### 실험 원칙
-
-- **변수 1개 격리 + 반복 3회 이내** 권장
-- 자동 지표만으로 성공/실패를 단정하지 않고, **수동 검증 문항 최소 5문항**을 upgrade-report에 포함
-- 지표가 목표치에 못 미쳐도, 수동 검증에서 개선이 확인되면 "부분 성공"으로 기록
-
-<br>
-
-## 2주 진행 구조
-
-| 단계 | 기간 | 문서 |
-|------|------|------|
-| **Prework** | Week 1 전 평일 | [`docs/01-prework/README.md`](./docs/01-prework/README.md) |
-| **Weekend-1** | Week 1 주말 | Track A: [`docs/track-a/02-weekend1/README.md`](./docs/track-a/02-weekend1/README.md)<br>Track B: [`docs/track-b/02-weekend1/README.md`](./docs/track-b/02-weekend1/README.md) |
-| **Midweek** | Week 1~2 사이 평일 | Track A: [`docs/track-a/03-midweek/README.md`](./docs/track-a/03-midweek/README.md)<br>Track B: [`docs/track-b/03-midweek/README.md`](./docs/track-b/03-midweek/README.md) |
-| **Weekend-2** | Week 2 주말 | Track A: [`docs/track-a/04-weekend2/README.md`](./docs/track-a/04-weekend2/README.md)<br>Track B: [`docs/track-b/04-weekend2/README.md`](./docs/track-b/04-weekend2/README.md) |
-
-<br>
-
-## 참고 자료
-
-- **[기술 레퍼런스](./docs/00-shared/reference.md)**: 양 트랙 공통 이론 + 트랙별 기술 심층 분석. **필독.**
-- **[Track A 스타터 평가 스크립트](./docs/00-shared/eval.py)**: Track A 수강생용 기본 평가 도구
-
-<br>
-
-## Git 브랜치 설정
+Next.js로 만든 포트폴리오 데모는 `demo-site/`에 있습니다.
 
 ```bash
-git clone <sprint-4-repo-url>
-git checkout -b delta-NN
-git push -u origin delta-NN
-# PR 생성: base=main, compare=delta-NN
+cd demo-site
+pnpm install
+pnpm dev --hostname 0.0.0.0 --port 3001
 ```
 
-<br>
+브라우저에서 엽니다.
 
-## 최종 제출물
-
-**sprint-4 레포에 페어 그룹당 PR 1개**를 만듭니다.
-
-```
-(브랜치)
-├── docs/track-a/03-midweek/upgrade-report.md   ← Track A
-├── docs/track-b/03-midweek/upgrade-report.md   ← Track B
-└── (데모 영상은 Google Drive 링크로 PR 본문에 기재)
+```text
+http://127.0.0.1:3001/
 ```
 
-### 1. upgrade-report.md
+정적 빌드 확인:
 
-트랙별 `03-midweek/upgrade-report.md`에 직접 작성합니다.
-
-**점진적 작성**: midweek에 섹션 1~3 초안 → weekend-2에서 섹션 4~6 보완 → 최종 PR에 완성본 제출.
-
-### 2. 데모 영상 (3~5분)
-
-- **Google Drive에 업로드**하고 링크를 PR 본문에 기재합니다 (GitHub 100MB 제한으로 직접 업로드 불가한 경우가 많음)
-- **Google Drive 공유 설정**: 업로드 후 파일 우클릭 → "공유" → "일반 액세스"를 **"링크가 있는 모든 사용자"**로 변경 → "뷰어" 권한 확인 → 링크 복사
-- **로컬 실행 결과**로 충분합니다 (배포 불필요)
-- **데모 필수 포함 내용**:
-  - 완주 스토리 모듈의 **Before/After 비교 시연** (동일 입력으로 개선 전후 결과를 보여줌)
-  - 엣지 케이스 재현 및 해결 시연
-  - "이 모듈에서 가장 어려웠던 점" 한 마디 (선택이지만 권장)
-
-### PR 제목 형식
-
-```
-[Track A/B] delta-NN — 완주 스토리 모듈명
+```bash
+cd demo-site
+pnpm build
 ```
 
-### PR 본문 템플릿
+## Backend App
 
-```markdown
-## 제출 요약
-- **트랙**: Track A / Track B
-- **팀**: delta-NN
-- **완주 스토리 모듈**: [모듈명]
-- **추가 모듈**: [모듈명]
+FastAPI 기반의 멀티모달 ingest/QA 파이프라인입니다.
 
-## 핵심 지표 변화 (한 줄)
-| 지표 | Before | After |
-|------|--------|-------|
-| (핵심 1개) | | |
-
-## 데모 영상
-[Google Drive 링크]
-
-## 완료 체크
-- [ ] upgrade-report.md 완성
-- [ ] 수동 검증 5문항 이상 포함
-- [ ] 데모 영상 링크 첨부 (공유 권한 확인)
+```bash
+pipenv install --dev
+cp .env.example .env
+pipenv run uvicorn app.main:app --reload
 ```
+
+주요 API:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /media/upload` | 영상 업로드 후 전사, 프레임 분석, chunk 저장 |
+| `POST /qa` | media_id와 질문으로 grounded QA 실행 |
+| `GET /media/{media_id}/segments` | 저장된 segment/context 확인 |
+| `GET /media/{media_id}/evaluate` | QA 평가 실행 |
+
+## Architecture
+
+```text
+Video upload
+  -> audio transcription
+  -> frame vision analysis
+  -> optional transcript correction
+  -> semantic/fixed chunking
+  -> embedding + hybrid retrieval
+  -> optional HyDE
+  -> optional LLM rerank
+  -> grounded QA
+  -> judge/evaluation
+```
+
+Speaker-aware case:
+
+```text
+media_segments.speaker_id
+media_files.metadata.speakers
+  -> speaker_intro for HyDE/rerank prompts
+  -> speaker-prefixed answer context
+```
+
+## Repository Map
+
+| Path | Description |
+| --- | --- |
+| `app/` | FastAPI app, ingest pipeline, QA pipeline, retrieval modules |
+| `app/ingest/` | transcription, vision analysis, correction, chunking |
+| `app/qa/` | retrieval, BM25, HyDE, LLM rerank, chat answer generation |
+| `experiments/` | experiment logs and reports for each failure-repair run |
+| `experiments/track4-speaker-annotation/` | speaker annotation CLI and schema migration |
+| `docs/track-b/` | Track B reports, implementation notes, PR summary |
+| `demo-site/` | public-facing portfolio site |
+| `tests/` | focused regression tests |
+
+## Verification
+
+```bash
+pipenv run pytest
+cd demo-site && pnpm build
+```
+
+Recent public-demo checks:
+
+- `demo-site` production build generates only 3 experiment pages: `print`, `cctv`, `movie`.
+- Removed Case 4 route returns 404.
+- `.env` is ignored; only `.env.example` is tracked.
+
+## Public Data Policy
+
+Runtime uploads, extracted frames, `.env`, and large local media files are intentionally excluded from the public repository.
+
+The 39-minute source video used for the speaker-aware movie debate case is not committed because it is large and may have external content rights. The README and demo text document the pipeline and evidence path; local media files can be placed under `demo-site/public/media/` when running a private local demo.
+
+## Tech Stack
+
+- Python 3.11
+- FastAPI
+- Supabase
+- Whisper / faster-whisper
+- OpenAI vision, chat, and embedding models
+- BM25 + hybrid retrieval
+- HyDE and LLM reranking
+- Next.js 14 + Tailwind CSS

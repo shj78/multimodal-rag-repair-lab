@@ -27,6 +27,32 @@ function statusTone(status: Experiment["timeline"][number]["status"]) {
   return "border-amber-300/30 bg-amber-300/10 text-amber-100";
 }
 
+function resultTone(tone: Experiment["finalAnswer"]["tone"] = "success") {
+  if (tone === "progress") {
+    return {
+      panel: "border-amber-300/25 bg-amber-300/10",
+      eyebrow: "text-amber-100/70",
+      answer: "text-amber-50",
+      summary: "text-amber-50/78",
+      card: "border-amber-200/15",
+      label: "text-amber-100/60",
+      arrow: "text-amber-200",
+      after: "text-amber-100",
+    };
+  }
+
+  return {
+    panel: "border-emerald-400/25 bg-emerald-400/10",
+    eyebrow: "text-emerald-200/70",
+    answer: "text-emerald-100",
+    summary: "text-emerald-50/78",
+    card: "border-emerald-200/15",
+    label: "text-emerald-100/60",
+    arrow: "text-emerald-200",
+    after: "text-emerald-100",
+  };
+}
+
 function valueTone(value: string) {
   if (
     value.includes("성공") ||
@@ -329,16 +355,54 @@ function ComparisonTable({
   );
 }
 
+function MetricGlossary() {
+  return (
+    <p className="text-xs leading-6 text-white/45">
+      AR: 답변 관련도 · GR: 근거 충실도 · RP: 검색 근거 관련도
+    </p>
+  );
+}
+
+function DetailMedia({ experiment }: { experiment: Experiment }) {
+  if (!experiment.media) {
+    return <Artwork experiment={experiment} detail />;
+  }
+
+  return (
+    <div className="overflow-hidden rounded-[28px] border border-white/10 bg-black/40">
+      <video
+        className="aspect-video w-full bg-black object-contain"
+        controls
+        playsInline
+        preload="metadata"
+      >
+        <source src={experiment.media.src} type="video/mp4" />
+      </video>
+      <div className="border-t border-white/10 bg-white/[0.03] p-4">
+        <p className="text-[11px] uppercase tracking-[0.24em] text-white/42">
+          Experiment video
+        </p>
+        <p className="mt-2 text-sm font-medium text-white/82">
+          {experiment.media.title}
+        </p>
+        <p className="mt-1 text-sm leading-6 text-white/60">
+          {experiment.media.note}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function DetailSidebar({ experiment }: { experiment: Experiment }) {
   return (
     <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">
       <div className="glass-panel p-4 md:p-5">
-        <Artwork experiment={experiment} detail />
+        <DetailMedia experiment={experiment} />
 
         <div className="mt-5 flex flex-wrap gap-2">
-          <span className="pill">{experiment.dataset}</span>
+          {!experiment.media && <span className="pill">{experiment.dataset}</span>}
           <span className="pill">{experiment.duration}</span>
-          <span className="pill">{experiment.artifact}</span>
+          {!experiment.media && <span className="pill">{experiment.artifact}</span>}
         </div>
 
         <h1 className="mt-5 text-3xl font-semibold tracking-[-0.04em] text-white md:text-4xl">
@@ -348,19 +412,21 @@ function DetailSidebar({ experiment }: { experiment: Experiment }) {
           {experiment.oneLiner}
         </p>
 
-        <div className="mt-5 flex items-center gap-3 rounded-[24px] border border-white/10 bg-black/20 p-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-white/[0.06]">
-            <Play className="h-5 w-5 text-white/80" />
+        {!experiment.media && (
+          <div className="mt-5 flex items-center gap-3 rounded-[24px] border border-white/10 bg-black/20 p-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-white/[0.06]">
+              <Play className="h-5 w-5 text-white/80" />
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.24em] text-white/42">
+                Prototype media
+              </p>
+              <p className="mt-1 text-sm text-white/72">
+                영상 플레이어 대신 썸네일형 모션 패널로 구조를 먼저 검증했습니다.
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.24em] text-white/42">
-              Prototype media
-            </p>
-            <p className="mt-1 text-sm text-white/72">
-              영상 플레이어 대신 썸네일형 모션 패널로 구조를 먼저 검증했습니다.
-            </p>
-          </div>
-        </div>
+        )}
       </div>
 
       <div className="glass-panel p-5">
@@ -416,6 +482,7 @@ export function ExperimentDetail({ experiment }: { experiment: Experiment }) {
   const currentIndex = experiments.findIndex((item) => item.slug === experiment.slug);
   const prev = experiments[(currentIndex - 1 + experiments.length) % experiments.length];
   const next = experiments[(currentIndex + 1) % experiments.length];
+  const finalTone = resultTone(experiment.finalAnswer.tone);
 
   return (
     <div className="pb-14">
@@ -495,6 +562,7 @@ export function ExperimentDetail({ experiment }: { experiment: Experiment }) {
 
             <SectionCard index="04" title="해결 과정">
               <div className="space-y-3">
+                <MetricGlossary />
                 {experiment.timeline.map((step) => (
                   <div
                     key={step.label}
@@ -519,15 +587,15 @@ export function ExperimentDetail({ experiment }: { experiment: Experiment }) {
               </div>
             </SectionCard>
 
-            <SectionCard index="05" title="최종 정답">
-              <div className="rounded-[28px] border border-emerald-400/25 bg-emerald-400/10 p-5 md:p-6">
-                <p className="text-[11px] uppercase tracking-[0.24em] text-emerald-200/70">
-                  Final answer
+            <SectionCard index="05" title={experiment.finalAnswer.sectionTitle ?? "최종 정답"}>
+              <div className={cx("rounded-[28px] border p-5 md:p-6", finalTone.panel)}>
+                <p className={cx("text-[11px] uppercase tracking-[0.24em]", finalTone.eyebrow)}>
+                  {experiment.finalAnswer.eyebrow ?? "Final answer"}
                 </p>
-                <p className="mt-3 text-xl font-semibold leading-9 tracking-[-0.03em] text-emerald-100 md:text-2xl">
+                <p className={cx("mt-3 text-xl font-semibold leading-9 tracking-[-0.03em] md:text-2xl", finalTone.answer)}>
                   {experiment.finalAnswer.answer}
                 </p>
-                <p className="mt-4 text-sm leading-7 text-emerald-50/78">
+                <p className={cx("mt-4 text-sm leading-7", finalTone.summary)}>
                   {experiment.finalAnswer.summary}
                 </p>
 
@@ -535,15 +603,15 @@ export function ExperimentDetail({ experiment }: { experiment: Experiment }) {
                   {experiment.finalAnswer.improvements.map((improvement) => (
                     <div
                       key={improvement.label}
-                      className="rounded-[22px] border border-emerald-200/15 bg-black/15 p-4"
+                      className={cx("rounded-[22px] border bg-black/15 p-4", finalTone.card)}
                     >
-                      <p className="text-[10px] uppercase tracking-[0.24em] text-emerald-100/60">
+                      <p className={cx("text-[10px] uppercase tracking-[0.24em]", finalTone.label)}>
                         {improvement.label}
                       </p>
                       <div className="mt-3 flex items-center gap-2 text-sm">
                         <span className="text-white/55">{improvement.before}</span>
-                        <ArrowUpRight className="h-4 w-4 text-emerald-200" />
-                        <span className="font-semibold text-emerald-100">
+                        <ArrowUpRight className={cx("h-4 w-4", finalTone.arrow)} />
+                        <span className={cx("font-semibold", finalTone.after)}>
                           {improvement.after}
                         </span>
                       </div>
@@ -575,10 +643,13 @@ export function ExperimentDetail({ experiment }: { experiment: Experiment }) {
             </SectionCard>
 
             <SectionCard index="08" title="평가 결과 비교표">
-              <ComparisonTable
-                columns={experiment.comparison.columns}
-                rows={experiment.comparison.rows}
-              />
+              <div className="space-y-3">
+                <MetricGlossary />
+                <ComparisonTable
+                  columns={experiment.comparison.columns}
+                  rows={experiment.comparison.rows}
+                />
+              </div>
             </SectionCard>
 
             <SectionCard index="09" title="배운 점">

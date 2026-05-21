@@ -1,9 +1,20 @@
+import re
 import time
 import requests
 from langsmith import traceable
 
 from ..config import QACfg, get_stage_config
 from ..prompts import get_qa_system_prompt
+
+
+_THINKING_BLOCK_RE = re.compile(r"<thinking\b[^>]*>.*?</thinking>\s*", re.IGNORECASE | re.DOTALL)
+
+
+def strip_thinking_blocks(answer: str | None) -> str:
+    """Remove chain-of-thought scratchpad blocks before returning answers to users."""
+    if not answer:
+        return ""
+    return _THINKING_BLOCK_RE.sub("", answer).strip()
 
 
 @traceable(name="qa.4_chat_completion", run_type="llm")
@@ -58,4 +69,4 @@ def get_answer_by_chat_model(query, similar_segments, cfg: QACfg | None = None):
         )
         answer = resp.json()["message"]["content"]
 
-    return answer, context_text
+    return strip_thinking_blocks(answer), context_text

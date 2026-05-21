@@ -11,7 +11,7 @@ export default function NotFound() {
           요청한 실험 페이지를 찾을 수 없습니다.
         </h1>
         <p className="mt-4 text-sm leading-7 text-white/64">
-          정적 프로토타입에는 4개의 실험 페이지만 포함되어 있습니다. 갤러리로
+          정적 프로토타입에는 3개의 실험 페이지만 포함되어 있습니다. 갤러리로
           돌아가서 다른 실험을 둘러보세요.
         </p>
         <Link

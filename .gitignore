@@ -34,10 +34,16 @@ ENV/
 # Uploads & frames (generated at runtime)
 app/uploads/
 app/frames/
+demo-site/public/media/
+cw_semantic_chunking_4o.mp4
 
 # Logs
 *.log
 logs/
+
+# Internal handoff notes
+docs/notes/session-handoff-*.md
+docs/notes/.checkpoint
 
 # Docker
 .dockerignore

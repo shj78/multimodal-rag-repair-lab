@@ -97,18 +97,6 @@ pipenv run pytest
 cd demo-site && pnpm build
 ```
 
-Recent public-demo checks:
-
-- `demo-site` production build generates only 3 experiment pages: `print`, `cctv`, `movie`.
-- Removed Case 4 route returns 404.
-- `.env` is ignored; only `.env.example` is tracked.
-
-## Public Data Policy
-
-Runtime uploads, extracted frames, `.env`, and large local media files are intentionally excluded from the public repository.
-
-The 39-minute source video used for the speaker-aware movie debate case is not committed because it is large and may have external content rights. The README and demo text document the pipeline and evidence path; local media files can be placed under `demo-site/public/media/` when running a private local demo.
-
 ## 사용된 기술
 
 - Python 3.11
